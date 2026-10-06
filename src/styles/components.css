@@ -183,6 +183,8 @@ select, input[type='search'] {
 .small { font-size: var(--text-sm); }
 
 .notice { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--line-strong); background: var(--surface); display: grid; gap: 4px; }
+/* Page-level notices ("Sem 2º turno", "Em breve") use an <h1> styled like the other notice titles. */
+.notice h1.notice-title { margin: 0; font-size: inherit; font-weight: 700; line-height: inherit; }
 .notice.is-error { border-color: #e03131; }
 .loading { display: flex; align-items: center; gap: 10px; padding: var(--space-5); color: var(--ink-2); justify-content: center; }
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--ink); animation: spin .8s linear infinite; }
@@ -249,6 +251,7 @@ code { font-size: .9em; padding: 1px 5px; border-radius: 4px; background: var(--
 @media (prefers-reduced-motion: no-preference) { .status-bar.is-stale .status-state .icon { animation: pulse 2s infinite; border-radius: 50%; } }
 .notice.is-warning { border-color: var(--warn-line); background: var(--warn-bg); color: var(--ink-2); }
 .notice.is-warning strong { color: var(--warn-ink); }
+.notice.is-warning .notice-title { color: var(--warn-ink); }
 
 /* Map legend: one ramp per leading party, labelled steps, "sem apuração" and stale swatch. */
 .legend { row-gap: var(--space-4); }

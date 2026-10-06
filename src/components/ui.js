@@ -148,9 +148,10 @@ export function Loading({ text = 'Carregando resultados…' }) {
   return html`<div class="loading" role="status"><span class="spinner" aria-hidden="true"></span>${text}</div>`;
 }
 
-export function Notice({ tone = 'info', title, children }) {
+export function Notice({ tone = 'info', title, children, heading = null }) {
+  const Title = heading || 'strong';
   return html`<div class=${'notice is-' + tone} role=${tone === 'error' ? 'alert' : 'note'}>
-    ${title && html`<strong>${title}</strong>`}<div>${children}</div>
+    ${title && html`<${Title} class="notice-title">${title}</${Title}>`}<div>${children}</div>
   </div>`;
 }
 

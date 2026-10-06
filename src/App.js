@@ -35,7 +35,7 @@ function About() {
 }
 
 function ComingSoon({ what }) {
-  return html`<${Notice} title="Em breve">${what} chega na próxima etapa do site. Por enquanto, veja <a href="#/1turno/presidente">Presidente</a>.</${Notice}>`;
+  return html`<${Notice} heading="h1" title="Em breve">${what} chega na próxima etapa do site. Por enquanto, veja <a href="#/1turno/presidente">Presidente</a>.</${Notice}>`;
 }
 
 function useToast() {

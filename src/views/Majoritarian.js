@@ -222,7 +222,7 @@ function StateRunoffWaiting({ office, first, data }) {
 /** A state without a runoff for this office. */
 function NoRunoff({ office, uf, first }) {
   const winner = electedCandidates(first?.uf?.[uf])[0];
-  return html`<${Notice} title=${`Sem 2º turno em ${stateName(uf)}`}>
+  return html`<${Notice} heading="h1" title=${`Sem 2º turno em ${stateName(uf)}`}>
     ${winner ? html`${titleCase(winner.name)} (${winner.party}) foi eleito no 1º turno com ${pct(winner.pct)} dos votos válidos, segundo o TSE. ` : ''}
     <a href=${`#/1turno/${office}/${uf}`}>Ver resultado do 1º turno →</a></${Notice}>`;
 }
