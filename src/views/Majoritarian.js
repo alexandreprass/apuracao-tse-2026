@@ -68,7 +68,7 @@ function StatesWon({ data }) {
 /** Amber warning in the body when the TSE cannot be read and there is no boletim to show at all. */
 export function NoBoletim({ data }) {
   const info = noBoletimNotice(data);
-  return info && html`<${Notice} tone=${info.tone} title=${info.title}>${info.text}${info.detail ? html` <span class="muted small">(${info.detail})</span>` : ''}</${Notice}>`;
+  return info && html`<${Notice} tone=${info.tone} title=${info.title}>${info.text}</${Notice}>`;
 }
 
 /** Before the TSE publishes the runoff: who is in it, when it starts, and an automatic check. */

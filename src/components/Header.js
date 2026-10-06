@@ -3,7 +3,7 @@ import { ENABLED_OFFICES, OFFICES, ROUNDS, TSE_SITE } from '../config.js';
 import { brasiliaStamp, brasiliaTime } from '../lib/format.js';
 import { isFinished, useFeed } from '../hooks/useData.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { announcement, statusInfo } from '../data/status.js';
+import { liveRegionText, statusInfo } from '../data/status.js';
 import { Icon } from './Icon.js';
 
 export function TopBar({ route, theme, onToggleTheme, onSearch, onShare }) {
@@ -70,8 +70,7 @@ export function StatusBar({ feed, round }) {
   const last = useRef(null);
   const [announce, setAnnounce] = useState('');
   useEffect(() => {
-    const text = announcement(last.current, info);
-    if (text) setAnnounce(text);
+    setAnnounce(current => liveRegionText(last.current, info, current));
     if (info.kind !== 'loading') last.current = info;
   }, [info.kind, info.boletim]);
 
