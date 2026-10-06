@@ -187,19 +187,7 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
   const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">${round > 1 ? 'Eleitos no 2º turno por partido' : 'Eleitos no 1º turno por partido'}</span></div>
     <${PartyBars} rows=${elected} unit="cadeiras" limit=${12}/>
-    <p class="muted small">Clique num estado no mapa para abrir só aquela disputa. Os candidatos já estão à direita.</p>
-  </div>
-  ${runoffs.length > 0 && html`<div class="runoff-list"><p class="won-line"><span class="metric-label">Disputas de 2º turno · ${ROUNDS[2].date}</span>
-      <a href=${`#/2turno/${office}`}>Ver 2º turno →</a></p>
-    <ul class="race-list race-candidates">${runoffs.map(uf => {
-      const [a, b] = runoffCandidates(data.uf[uf]);
-      return html`<li key=${uf}><a href=${`#/${round}turno/${office}/${uf}`}><b>${uf}</b></a>
-        <div class="race-candidate-pair">
-          <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>– ${pct(a.pct)}</small></span>
-          <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>– ${pct(b.pct)}</small></span>
-        </div></li>`;
-    })}</ul></div>`}
-  <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState} showStatus round=${round} staleUfs=${data.staleUfs}/></div>`;
+  </div>`;
   const scoreboard = html`<div class="score-card">
     ${UFS.filter(uf => data.uf[uf]?.candidates?.length).map(uf => {
       const result = data.uf[uf];
