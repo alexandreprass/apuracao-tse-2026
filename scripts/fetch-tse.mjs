@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OFFICES, ROUNDS, TSE_BASE, electionCode, tseResultUrl } from '../src/config.js';
 import { normalizeResult } from '../src/data/normalize.js';
+import { writeManifest } from './manifest.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -166,6 +167,7 @@ async function main() {
   await rename(TMP, FINAL);
   await rm(OLD, { recursive: true, force: true });
   if (pendingCodes) await writeFile(CODES_FILE, pendingCodes);
+  await writeManifest(); // the site asks only for bundle files listed here
   console.log(warnings.length ? `Concluído com ${warnings.length} aviso(s).` : 'Concluído sem avisos.');
 }
 

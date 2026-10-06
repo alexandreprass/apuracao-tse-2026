@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { loadMunicipality, loadOffice, resetCaches, runoffUfs, signature } from '../src/data/source.js';
+import { loadMunicipalPack, loadMunicipality, loadOffice, resetCaches, runoffUfs, signature } from '../src/data/source.js';
 
 const rjFixture = JSON.parse(readFileSync(new URL('./fixtures/rj-c0003-e006259-u.json', import.meta.url), 'utf8'));
 /** The RJ governor file as if it were the 2º turno, generated at `hg`. */
@@ -163,4 +163,43 @@ test('governor cadence follows PR #1 pollsClosed: 5 min before 17h of 25/10, 30 
   try { await loadOffice(2, 'governador'); } finally { Date.now = realNow; }
   assert.deepEqual(asked.filter(Boolean).sort(), ['am', 'rj']);
   assert.ok(!/roundStarted/.test(readFileSync(new URL('../src/data/source.js', import.meta.url), 'utf8')), 'one shared helper: pollsClosed');
+});
+
+test('manifest: no request for a round-2 copy until data/manifest.json lists it; a page left open then picks it up', async () => {
+  resetCaches();
+  const round1Only = { rounds: { 1: { offices: ['presidente', 'governador'], municipal: ['presidente', 'governador'] } } };
+  let manifest = round1Only;
+  const local = [];
+  const copy2 = { round: 2, br: { scope: 'br', candidates: [], updated: '25/10/2026 18:00:00' }, uf: {} };
+  mockFetch({
+    tse: async url => (url.endsWith('ele-c.json') ? configWithout2ndRound : status(404)),
+    local: async url => {
+      local.push(url.replace(/^.*\/data\//, ''));
+      if (url.endsWith('manifest.json')) return ok(manifest);
+      return url.includes('tse/2/presidente.json') ? ok(copy2) : status(404);
+    },
+  });
+  const first = await loadOffice(2, 'presidente');
+  assert.equal(first.status, 'not-published');
+  assert.deepEqual(local, ['manifest.json'], 'only the manifest, no 404 on data/tse/2/*');
+  assert.equal(await loadMunicipalPack(2, 'presidente', 'RJ'), null);
+  assert.ok(!local.some(u => u.startsWith('tse/2/')));
+  // Same open page, next poll cycles: the manifest is read again each time.
+  const second = await loadOffice(2, 'presidente', first);
+  assert.equal(second.status, 'not-published');
+  assert.equal(local.filter(u => u === 'manifest.json').length, 3);
+  manifest = { rounds: { ...round1Only.rounds, 2: { offices: ['presidente'], municipal: [] } } };
+  const third = await loadOffice(2, 'presidente', second);
+  assert.equal(third.source, 'local');
+  assert.equal(third.round, 2);
+  assert.ok(local.includes('tse/2/presidente.json'));
+});
+
+test('manifest: build/fetch script lists exactly the rounds and offices on disk (and the shipped file matches)', async () => {
+  const { buildManifest } = await import('../scripts/manifest.mjs');
+  const built = await buildManifest();
+  assert.deepEqual(Object.keys(built.rounds), ['1']);
+  assert.deepEqual(built.rounds[1].municipal, ['presidente', 'governador']);
+  assert.ok(built.rounds[1].offices.includes('governador'));
+  assert.deepEqual(JSON.parse(readFileSync(new URL('../public/data/manifest.json', import.meta.url), 'utf8')), built);
 });

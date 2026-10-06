@@ -208,7 +208,25 @@ export function runoffUfs(office) {
     .then(first => (first?.uf ? UFS.filter(uf => (first.uf[uf]?.candidates || []).some(c => c.kind === 'segundo-turno')) : UFS));
 }
 
-async function bundleOffice(round, office, fresh = false) {
+/**
+ * data/manifest.json: the rounds and offices the shipped copy has (written by the build and by fetch-tse).
+ * Re-read on every poll cycle (tiny; a 304 is fine), never once for good, so a page left open picks up a
+ * newly copied round. null if it cannot be read.
+ */
+export const loadManifest = () => getJson(bundleUrl('manifest.json'), { fresh: true }).catch(() => null);
+
+/** The manifest for one poll cycle; not read at all when the shipped copy is never used (?fonte=tse). */
+const cycleManifest = round => (modeFor(round) === 'live-only' ? Promise.resolve(null) : loadManifest());
+
+/** Whether the shipped copy has this round/office (`kind`: offices or municipal). No manifest: ask anyway, never hide a copy. */
+export async function bundleListed(round, office, kind = 'offices', manifest = loadManifest()) {
+  const m = await manifest;
+  if (!m?.rounds) return true;
+  return !!m.rounds[round]?.[kind]?.includes(office);
+}
+
+async function bundleOffice(round, office, fresh = false, manifest = loadManifest()) {
+  if (!(await bundleListed(round, office, 'offices', manifest))) throw new NotPublished('Sem cópia local destes resultados.');
   // First load: a plain request, so the browser reuses the <link rel="preload"> of index.html.
   const data = await getJson(bundleUrl(`tse/${round}/${office}.json`), { fresh }).catch(() => null);
   if (!data) throw new NotPublished('Sem cópia local destes resultados.');
@@ -262,11 +280,14 @@ export async function loadWithFallback(round, live, bundle, previous = null, now
 }
 
 /** President, governors or senators: every place for one round. */
-export const loadOffice = (round, office, previous = null) =>
-  loadWithFallback(round, last => liveOffice(round, office, last), () => bundleOffice(round, office, !!previous), previous);
+export function loadOffice(round, office, previous = null) {
+  const manifest = cycleManifest(round); // every cycle
+  return loadWithFallback(round, last => liveOffice(round, office, last), () => bundleOffice(round, office, !!previous, manifest), previous);
+}
 
 /** Proportional offices (deputies) are loaded one state at a time. */
 export function loadProportional(round, office, uf, previous = null) {
+  const manifest = cycleManifest(round); // every cycle
   return loadWithFallback(round,
     async last => {
       const raw = await getJson(tseResultUrl(round, office, uf.toLowerCase()), { fresh: true });
@@ -277,6 +298,7 @@ export function loadProportional(round, office, uf, previous = null) {
       return { result: normalizeResult(raw, { compact: true }) };
     },
     async () => {
+      if (!(await bundleListed(round, office, 'offices', manifest))) throw new NotPublished('Sem cópia local deste resultado.');
       const data = await getJson(bundleUrl(`tse/${round}/${office}/${uf}.json`), { fresh: true }).catch(() => null);
       if (!data) throw new NotPublished('Sem cópia local deste resultado.');
       return data;
@@ -361,8 +383,10 @@ export const loadIndex = round =>
   cached(indexCache, round, () => getJson(bundleUrl(`tse/${round}/index.json`), { fresh: true }).catch(() => null));
 
 /** Results of one office in every municipality of a state (shipped copy, with its `fetchedAt`), or null. */
-export function loadMunicipalPack(round, office, uf) {
-  if (!MUNICIPAL_OFFICES.includes(office)) return Promise.resolve(null);
+export async function loadMunicipalPack(round, office, uf) {
+  if (!MUNICIPAL_OFFICES.includes(office)) return null;
+  // Nothing is asked for (not even the round's index) until the manifest lists this round's municipal copy.
+  if (!(await bundleListed(round, office, 'municipal'))) return null;
   return cached(packCache, `${round}/${office}/${uf}`, () => loadIndex(round)
     // Only ask for the file when the shipped index says it exists (no 404 noise before a round is copied).
     .then(index => (hasMunicipal(index, office) ? getJson(bundleUrl(`tse/${round}/${office}-municipios/${uf}.json`), { fresh: true }) : null))
