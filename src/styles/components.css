@@ -337,3 +337,8 @@ select, input[type='search'], .search-trigger { border-color: var(--line-input);
 .runoff-state h3 { font-size: var(--text-md); }
 .runoff-state h3 small { color: var(--ink-3); font-weight: 400; }
 .hero-status { margin-top: var(--space-1); }
+
+/* Governor map (design): runoff states hatched with a "2º turno" badge on the label; legend by party. */
+.swatch-runoff { background: repeating-linear-gradient(45deg, var(--ink-3) 0 2px, transparent 2px 5px); border: 1px solid var(--line-strong); }
+/* Elected candidate: badge in the party colour, with the palette's ink for that colour. */
+.badge.is-party-elected { font-weight: 600; }

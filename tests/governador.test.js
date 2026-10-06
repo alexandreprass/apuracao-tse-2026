@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { normalizeResult } from '../src/data/normalize.js';
 import { electedCandidates, mapRow, partyTally, raceStatus, readPackRow, runoffCandidates, runoffStates, stateRows, unpackMunicipalities } from '../src/data/analysis.js';
-import { statusColor, MAP_EMPTY } from '../src/lib/color.js';
+import { statusFill, MAP_EMPTY, partyBadge, partyFill } from '../src/lib/color.js';
+import * as c from '../scripts/palette/colorlib.mjs';
 import { UFS } from '../src/data/states.js';
 import { parseHash } from '../src/hooks/useRoute.js';
 import { findEntries, searchableCandidates } from '../src/components/SearchDialog.js';
@@ -115,14 +116,22 @@ test('municipal files add up to each state and reproduce the TSE shares', () => 
   assert.deepEqual([old.valid, old.subJudice, old.votes], [6, 0, [4, 2]]);
 });
 
-test('national map: leader colour for all, full when decided and lighter in a runoff', () => {
+test('national map (design): party colour of the winner or leader; runoffs marked by status, not by colour', () => {
   const rows = stateRows(bundle);
   assert.equal(rows.SP.status, 'decidido');
   assert.equal(rows.RJ.status, 'segundo-turno');
   for (const theme of ['dark', 'light']) {
-    assert.notEqual(statusColor(rows.RJ, theme), statusColor({ ...rows.RJ, status: 'decidido' }, theme));
-    assert.notEqual(statusColor(rows.RJ, theme), MAP_EMPTY[theme]);
-    assert.equal(statusColor(mapRow(null, 'X'), theme), MAP_EMPTY[theme]);
+    // Same strongest party colour whether the race was decided or goes to the runoff…
+    assert.deepEqual(statusFill(rows.RJ, theme), statusFill({ ...rows.RJ, status: 'decidido' }, theme));
+    assert.deepEqual(statusFill(rows.RJ, theme), partyFill(rows.RJ.leaderParty, 1, theme));
+    assert.equal(statusFill(mapRow(null, 'X'), theme).fill, MAP_EMPTY[theme]);
+  }
+});
+
+test('"Eleito no Nº turno" badge: party colour with the palette ink reads at 4.5:1 for every party', () => {
+  for (const name of Object.keys(bundle.uf).flatMap(uf => bundle.uf[uf].candidates.map(x => x.party))) {
+    const { fill, ink } = partyBadge(name);
+    assert.ok(c.contrast(fill, ink) >= 4.5, `${name}: ${c.contrast(fill, ink).toFixed(2)}`);
   }
 });
 

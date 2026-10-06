@@ -19,11 +19,11 @@ import { Breadcrumb, placeTitle } from '../components/Place.js';
 import { TrendChart } from '../components/TrendChart.js';
 
 /** Candidate cards: the two leaders large, everyone else in a compact grid. */
-function CandidateGrid({ result, office, uf }) {
+function CandidateGrid({ result, office, uf, round = null }) {
   const [first, second, ...rest] = result.candidates;
   return html`<div class="candidates">
     <div class="candidates-top">
-      ${[first, second].filter(Boolean).map((c, i) => html`<${CandidateCard} key=${c.n} candidate=${c} office=${office} uf=${uf} rank=${i + 1} big/>`)}
+      ${[first, second].filter(Boolean).map((c, i) => html`<${CandidateCard} key=${c.n} candidate=${c} office=${office} uf=${uf} rank=${i + 1} round=${round} big/>`)}
     </div>
     ${rest.length > 0 && html`<div class="candidates-rest">
       ${rest.slice(0, 2).map((c, i) => html`<${CandidateCard} key=${c.n} candidate=${c} office=${office} uf=${uf} rank=${i + 3}/>`)}
@@ -304,7 +304,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
             return a && b && html`<p class="hero-margin">${titleCase(a.name)} ${result.finished ? 'teve' : 'está com'} ${int(a.votes - b.votes)} votos a mais que ${titleCase(b.name)}</p>`;
           })()}
           ${!ibge && (federal ? !uf : true) && html`<${RaceNote} result=${result} round=${round} office=${office} uf=${uf}/>`}
-          <${CandidateGrid} result=${result} office=${office} uf=${uf}/>
+          <${CandidateGrid} result=${result} office=${office} uf=${uf} round=${round}/>
           <p class="muted small">${result.subJudice
               ? `Percentuais sobre ${int(result.validComputed)} votos: os ${int(result.valid)} válidos mais ${int(result.subJudice)} anulados sub judice (candidatura com recurso pendente), como calcula o TSE.`
               : 'Percentuais sobre os votos válidos (sem brancos e nulos), como divulga o TSE.'}
@@ -313,7 +313,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
             ? html`<button class="button is-on" aria-pressed="true" onClick=${() => setMyMunicipality(null)}><${Icon} name="star" size=${15}/> Meu município</button>`
             : html`<button class="button" aria-pressed="false" onClick=${() => setMyMunicipality(ibge)}><${Icon} name="star" size=${15}/> Marcar como meu município</button>`}</p>`}
         </section>
-        ${round === 2 && html`<${Comeback} result=${result}/>`}
+        ${round === 2 && !electedCandidates(result).length && html`<${Comeback} result=${result}/>`}
         <${Section} title="Participação e votos" subtitle=${`Eleitorado, comparecimento e votos em ${placeTitle(route, geo)}`}>
           <${Metrics} result=${result}/>
         </${Section}>

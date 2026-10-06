@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { compact, initials, int, pct, titleCase } from '../lib/format.js';
-import { partyColor } from '../lib/color.js';
+import { partyBadge, partyColor } from '../lib/color.js';
 import { photoUrl } from '../config.js';
 
 const LOCAL_PHOTOS = { '280002551544': 'images/flavio.webp', '280002542548': 'images/lula.webp' };
@@ -34,6 +34,12 @@ export function StatusBadge({ candidate }) {
   const [label, tone] = STATUS[candidate.kind] || STATUS.outro;
   const text = candidate.kind === 'eleito' && /qp|média/i.test(candidate.status) ? candidate.status : (label || candidate.status);
   return html`<span class=${'badge ' + tone}>${text}</span>`;
+}
+
+/** "Eleito no Nº turno" in the party colour, with the palette's ink for that colour (from the TSE status only). */
+export function ElectedBadge({ candidate, round }) {
+  const { fill, ink } = partyBadge(candidate.party);
+  return html`<span class="badge is-party-elected" style=${{ background: fill, color: ink, borderColor: fill }}>Eleito no ${round}º turno</span>`;
 }
 
 export function Progress({ value, label, tone = '' }) {
@@ -71,7 +77,7 @@ export function Metrics({ result, compactMode = false }) {
 }
 
 /** One candidate: portrait, name, number and party, votes, share and status. */
-export function CandidateCard({ candidate, office, uf, rank, big = false, showVotes = true, placeholder = false, note }) {
+export function CandidateCard({ candidate, office, uf, rank, big = false, showVotes = true, placeholder = false, note, round = null }) {
   const color = partyColor(candidate.party);
   return html`<article class=${'candidate' + (big ? ' is-big' : '') + (placeholder ? ' is-placeholder' : '')}
       id=${'cand-' + candidate.n} style=${{ '--party': color }}>
@@ -80,7 +86,9 @@ export function CandidateCard({ candidate, office, uf, rank, big = false, showVo
       <h3>${titleCase(candidate.name)}</h3>
       <p class="candidate-party"><b>${candidate.party}</b> · ${candidate.n}${candidate.vice ? html`<span> · vice: ${titleCase(candidate.vice)}</span>` : null}</p>
       ${candidate.coalition ? html`<p class="candidate-coalition" title=${candidate.composition ? `Coligação: ${candidate.composition}` : undefined}>${titleCase(candidate.coalition)}</p>` : null}
-      <${StatusBadge} candidate=${candidate}/>
+      ${round && candidate.kind === 'eleito' && !placeholder
+        ? html`<${ElectedBadge} candidate=${candidate} round=${round}/>`
+        : html`<${StatusBadge} candidate=${candidate}/>`}
       ${candidate.validity ? html`<span class=${'badge ' + (/sub judice/i.test(candidate.validity) ? 'is-subjudice' : 'is-out')}
         title=${/sub judice/i.test(candidate.validity) ? 'Candidatura com recurso pendente na Justiça Eleitoral: os votos ficam separados até a decisão, mas o TSE os inclui no cálculo dos percentuais.' : 'Situação da candidatura no TSE'}>${candidate.validity}</span>` : null}
     </div>

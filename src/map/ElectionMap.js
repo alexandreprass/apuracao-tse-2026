@@ -77,9 +77,12 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.fillStyle = fill(stateResults[state.uf]);
         ctx.fill(state.fill);
       }
-      // A state showing its last good result (TSE did not answer) keeps its colour under a diagonal hatch.
+      // Diagonal hatch over the state's colour: "/" for a stale result (TSE did not answer), "\\" for a
+      // race that goes to the runoff (paint.hatch). Both can apply at once.
       for (const state of Object.values(geo.states)) {
-        if (!stateResults[state.uf]?.stale) continue;
+        const row = stateResults[state.uf];
+        const stale = !!row?.stale, runoff = !!paint.hatch?.(row);
+        if (!stale && !runoff) continue;
         ctx.save();
         ctx.clip(state.fill);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -87,7 +90,8 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.lineWidth = 2;
         const b = state.box, x0 = b[0] * k + x, y0 = b[1] * k + y, x1 = b[2] * k + x, y1 = b[3] * k + y, h = y1 - y0;
         ctx.beginPath();
-        for (let sx = x0 - h; sx < x1; sx += 6) { ctx.moveTo(sx, y0); ctx.lineTo(sx + h, y1); }
+        if (stale) for (let sx = x0 - h; sx < x1; sx += 6) { ctx.moveTo(sx, y0); ctx.lineTo(sx + h, y1); }
+        if (runoff) for (let sx = x0; sx < x1 + h; sx += 7) { ctx.moveTo(sx, y0); ctx.lineTo(sx - h, y1); }
         ctx.stroke();
         ctx.restore();
       }
@@ -363,6 +367,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           onClick=${() => onState(state.uf)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
           onPointerEnter=${labelEnter(state.uf)} onPointerLeave=${() => setHover(null)}>
           <b>${state.uf}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
+          ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
         </button>`;
       })}
       ${CALLOUTS.map((code, i) => {
@@ -372,6 +377,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           onClick=${() => onState(code)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
           onPointerEnter=${labelEnter(code)} onPointerLeave=${() => setHover(null)}>
           <b>${code}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
+          ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
         </button>`;
       })}
     </div>`}

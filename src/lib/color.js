@@ -42,11 +42,17 @@ export function completionColor(ratio, theme = 'dark') {
 export const completionRamp = theme => [.3, .48, .64, .82, 1].map(t => mix(MAP_BASE[theme], COMPLETION_END[theme], t));
 
 /**
- * "Situação" map: every state takes the colour of its leader's party. Races the TSE marked as decided
- * use the full colour; runoffs (and counts still open) the lightest step, labelled "2ºT" on the map.
+ * "Situação" map (governors, later senators): every state takes the strongest colour of its winner's or
+ * leader's party, with the ink to write on it. Runoffs are marked by hatching and a "2º turno" badge on
+ * the label (from the TSE status), not by a lighter colour.
  */
-export const STATUS_STEPS = { decidido: 1, 'segundo-turno': 0, 'em-apuracao': 0 };
-export function statusColor(row, theme = 'dark') {
-  if (!row || row.empty || !row.leaderParty) return MAP_EMPTY[theme];
-  return partyFill(row.leaderParty, STATUS_STEPS[row.status] ?? 0, theme).fill;
+/**
+ * Background + ink for a badge in a party's colour (theme-independent): the strongest light step, which the
+ * palette guarantees at ≥ 4.5:1 with its ink. The raw base is not always enough (MOBILIZA base + white = 4.4:1).
+ */
+export const partyBadge = x => partyFill(x, 1, 'light');
+
+export function statusFill(row, theme = 'dark') {
+  if (!row || row.empty || !row.leaderParty) return { fill: MAP_EMPTY[theme], ink: null };
+  return partyFill(row.leaderParty, 1, theme);
 }
