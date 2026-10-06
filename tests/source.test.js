@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { loadMunicipality, loadOffice, resetCaches, signature } from '../src/data/source.js';
+import { loadMunicipality, loadOffice, resetCaches, runoffUfs, signature } from '../src/data/source.js';
 
 const rjFixture = JSON.parse(readFileSync(new URL('./fixtures/rj-c0003-e006259-u.json', import.meta.url), 'utf8'));
 /** The RJ governor file as if it were the 2º turno, generated at `hg`. */
@@ -126,4 +126,22 @@ test('2º turno for governors: before the polls close, a waiting page asks the T
   const data = await loadOffice(2, 'governador');
   assert.equal(data.status, 'not-published');
   assert.equal(asked.length, 1);
+});
+
+test('2º turno for governors: a state without the TSE runoff mark in the 1º turno copy is never requested', async () => {
+  resetCaches();
+  const first = JSON.parse(readFileSync(new URL('../public/data/tse/1/governador.json', import.meta.url), 'utf8'));
+  first.uf.ES.candidates = first.uf.ES.candidates.map((c, i) => ({ ...c, kind: i === 0 ? 'eleito' : 'nao-eleito' }));
+  const asked = [];
+  mockFetch({
+    tse: async url => {
+      if (url.endsWith('ele-c.json')) return { status: 200, ok: true, json: async () => ({ pl: [{ e: [{ cd: '6260' }] }] }) };
+      asked.push(url.match(/dados\/(\w\w)\//)[1]);
+      return status(404);
+    },
+    local: async url => (url.includes('tse/1/governador.json') ? ok(first) : status(404)),
+  });
+  assert.deepEqual(await runoffUfs('governador'), ['AC', 'AM', 'DF', 'RJ', 'RN', 'TO']);
+  await loadOffice(2, 'governador');
+  assert.ok(asked.length > 0 && !asked.includes('es'), asked.join());
 });

@@ -28,6 +28,12 @@ export const electedCandidates = result => (result?.candidates || []).filter(c =
 /** States whose race for this office goes to a runoff, according to the TSE. */
 export const runoffStates = data => UFS.filter(uf => raceStatus(data?.uf?.[uf]) === 'segundo-turno');
 
+/** Whether a state has a 2º turno page for this office (else the route shows "Sem 2º turno em <UF>"). */
+export const hasRunoff = (first, uf) => runoffStates(first).includes(uf);
+
+/** States offered by the 2º turno state picker: the runoff ones (plus the current page, so the picker shows it). */
+export const runoffPickerUfs = (ufs, current = null) => UFS.filter(code => !ufs || ufs.includes(code) || code === current);
+
 /** What the map needs to colour and label one place. */
 export function mapRow(result, name) {
   if (!result) return { name, empty: true, completion: 0, electorate: 0 };

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { normalizeResult } from '../src/data/normalize.js';
-import { electedCandidates, mapRow, partyTally, raceStatus, readPackRow, runoffCandidates, runoffStates, stateRows, unpackMunicipalities } from '../src/data/analysis.js';
+import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, readPackRow, runoffCandidates, runoffPickerUfs, runoffStates, stateRows, unpackMunicipalities } from '../src/data/analysis.js';
 import { statusFill, MAP_EMPTY, partyBadge, partyFill } from '../src/lib/color.js';
 import * as c from '../scripts/palette/colorlib.mjs';
 import { UFS } from '../src/data/states.js';
@@ -152,4 +152,41 @@ test('search finds governor candidates with their state, and states', () => {
   assert.ok(findEntries(geo, candidates, 'lula').some(e => e.office === 'presidente'));
   assert.ok(findEntries(geo, candidates, 'bahia').some(e => e.type === 'state' && e.id === 'BA'));
   assert.ok(findEntries(geo, candidates, 'to').some(e => e.type === 'state' && e.id === 'TO'));
+});
+
+/** The shipped 1º turno copy with the TSE runoff mark removed from one state (its leader shown as elected). */
+function withoutRunoff(data, uf) {
+  const copy = structuredClone(data);
+  copy.uf[uf].candidates = copy.uf[uf].candidates.map((c, i) => ({ ...c,
+    kind: i === 0 ? 'eleito' : 'nao-eleito', status: i === 0 ? 'Eleito' : 'Não eleito', elected: i === 0 }));
+  return copy;
+}
+
+test('2º turno comes from the TSE status only: a state that loses its runoff mark loses its 2º turno page', () => {
+  const edited = withoutRunoff(bundle, 'ES');
+  assert.equal(hasRunoff(bundle, 'ES'), true);
+  assert.equal(hasRunoff(edited, 'ES'), false); // the route #/2turno/governador/ES becomes "Sem 2º turno em Espírito Santo"
+  assert.deepEqual(runoffStates(edited), RUNOFF_UFS.filter(uf => uf !== 'ES'));
+  // Waiting page cards and the state picker are built from the same list.
+  assert.ok(!runoffPickerUfs(runoffStates(edited)).includes('ES'));
+  assert.deepEqual(runoffPickerUfs(runoffStates(bundle)), RUNOFF_UFS);
+  // Map: the state now gets no runoff hatch/badge.
+  assert.equal(stateRows(edited).ES.status, 'decidido');
+  assert.equal(stateRows(bundle).ES.status, 'segundo-turno');
+});
+
+test('no hard-coded list of runoff states anywhere in src', () => {
+  const runoff = new Set(RUNOFF_UFS);
+  const files = readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter(f => /\.(js|css|html)$/.test(f));
+  const offenders = [];
+  for (const f of files) {
+    // Comments may name states (e.g. which callouts a control avoids); only code and copy count.
+    const text = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\/|(^|[^:])\/\/.*$/gm, '$1');
+    // Any run of two or more state codes (quoted list items, or "AC, AM"/"AC/AM" in text) made only of runoff states.
+    for (const m of text.matchAll(/\b[A-Z]{2}\b(?:['"]?\s*[,/|]\s*['"]?\b[A-Z]{2}\b)+/g)) {
+      const codes = m[0].match(/[A-Z]{2}/g);
+      if (codes.every(code => runoff.has(code))) offenders.push(`${f}: ${m[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
 });

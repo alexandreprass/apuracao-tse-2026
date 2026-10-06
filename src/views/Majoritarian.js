@@ -3,7 +3,7 @@ import { html } from '../lib/html.js';
 import { OFFICES, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS } from '../config.js';
 import { brasiliaStamp, compact, int, pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
-import { electedCandidates, mapRow, partyTally, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
+import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
 import { stateName, UFS } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
 import { readTrend, recordTrend } from '../data/trend.js';
@@ -263,7 +263,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
   const muniStale = !!ibge && !!live.data?.liveError;
 
   const crumbs = html`<${Breadcrumb} route=${route} geo=${geo} allowExterior=${!!data?.zz} ufs=${runoffList}/>`;
-  if (runoffList && uf && !runoffList.includes(uf)) return html`${crumbs}<${NoRunoff} office=${office} uf=${uf} first=${firstRound.data}/>`;
+  if (runoffList && uf && !hasRunoff(firstRound.data, uf)) return html`${crumbs}<${NoRunoff} office=${office} uf=${uf} first=${firstRound.data}/>`;
   if (!data) return html`<${Loading}/>`;
   if (data.status) {
     if (round === 2 && (federal || uf)) return html`${crumbs}<${RunoffWaiting} office=${office} uf=${uf === 'ZZ' ? null : uf}

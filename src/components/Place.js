@@ -1,6 +1,7 @@
 import { html } from '../lib/html.js';
 import { OFFICES, ROUNDS } from '../config.js';
-import { STATES, stateName, UFS } from '../data/states.js';
+import { STATES, stateName } from '../data/states.js';
+import { runoffPickerUfs } from '../data/analysis.js';
 
 /** Brasil › Estado › Município, plus a state picker. */
 export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
@@ -19,7 +20,7 @@ export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
       <span class="sr-only">Escolher estado</span>
       <select value=${uf || ''} onChange=${e => route.go({ uf: e.currentTarget.value || null, ibge: null })}>
         <option value="">${OFFICES[office].proportional ? 'Escolha um estado' : ufs ? `Brasil (${ufs.length} estados com 2º turno)` : 'Brasil (todos os estados)'}</option>
-        ${UFS.filter(code => !ufs || ufs.includes(code) || code === uf).map(code => html`<option key=${code} value=${code}>${STATES[code][0]} (${code})</option>`)}
+        ${runoffPickerUfs(ufs, uf).map(code => html`<option key=${code} value=${code}>${STATES[code][0]} (${code})</option>`)}
         ${allowExterior && html`<option value="ZZ">Exterior</option>`}
       </select>
     </label>
