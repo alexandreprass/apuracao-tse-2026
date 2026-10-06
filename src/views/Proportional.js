@@ -68,14 +68,7 @@ function Overview({ route, geo, theme, index, office }) {
   const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">Eleitos por partido · Brasil</span></div>
     <${PartyBars} rows=${tally.parties} total=${tally.seats} unit="cadeiras" limit=${16} showPercent=${false}/>
-    <p class="muted small">Cor do mapa: partido com mais cadeiras no estado.</p>
-  </div>
-  <ul class="race-list">${present.map(uf => {
-    const top = Object.entries(seats[uf].elected).sort((a, b) => b[1] - a[1])[0];
-    return html`<li key=${uf}><a href=${`#/1turno/${office}/${uf}`}><b>${uf}</b></a>
-      <span>${stateName(uf)}</span>
-      <span><i class="swatch" style=${{ background: partyColor(top[0]) }}></i>${top[0]} <small>${top[1]}/${seats[uf].seats}</small></span></li>`;
-  })}</ul>`;
+  </div>`;
   const byUf = results.value || {};
   const scoreboard = !results.value
     ? html`<${Loading} text="Carregando candidatos…"/>`
