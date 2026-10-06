@@ -142,7 +142,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
   const [myMunicipality, setMyMunicipality] = useMyMunicipality();
   const data = officeState.data;
   const firstRound = useOffice(1, office);
-  const packState = useMunicipalPack(round, office === 'presidente' ? uf : null);
+  const packState = useMunicipalPack(round, office, uf);
   const national = data?.br;
   const municipalRows = useMemo(() => unpackMunicipalities(packState.value, national, geo), [packState.value, national, geo]);
   const packRow = ibge ? municipalRows.get(ibge) : null;

@@ -29,8 +29,8 @@ export function MyMunicipality({ geo, office, officeData, onChoose }) {
   const published = !!officeData && !officeData.status;
   const live = useLiveMunicipality(2, office, place ? ibge : null, published);
   const first = useOffice(1, office);
-  const pack1 = useMunicipalPack(1, place?.uf);
-  const pack2 = useMunicipalPack(2, published ? place?.uf : null);
+  const pack1 = useMunicipalPack(1, office, place?.uf);
+  const pack2 = useMunicipalPack(2, office, published ? place?.uf : null);
   const firstRow = useMemo(() => (ibge ? unpackMunicipalities(pack1.value, first.data?.br, geo).get(ibge) : null), [pack1.value, first.data, ibge, geo]);
   const copyRow = useMemo(() => (ibge ? unpackMunicipalities(pack2.value, officeData?.br, geo).get(ibge) : null), [pack2.value, officeData, ibge, geo]);
 

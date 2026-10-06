@@ -56,6 +56,6 @@ export function useAsync(key, fn, every = 0) {
   return state;
 }
 
-/** Shipped municipal file of a state; re-read when its cache expires, for copies republished during a count. */
-export const useMunicipalPack = (round, uf) =>
-  useAsync(`${round}|${uf}`, () => (uf && uf !== 'ZZ' ? loadMunicipalPack(round, uf) : null), STATIC_TTL_MS);
+/** Shipped municipal file of one office and state; re-read when its cache expires, for copies republished during a count. */
+export const useMunicipalPack = (round, office, uf) =>
+  useAsync(`${round}|${office}|${uf}`, () => (uf && uf !== 'ZZ' ? loadMunicipalPack(round, office, uf) : null), STATIC_TTL_MS);

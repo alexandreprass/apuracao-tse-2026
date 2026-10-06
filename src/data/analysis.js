@@ -12,11 +12,31 @@ export function marginPoints(result) {
   return a.pct - (b?.pct || 0);
 }
 
+/**
+ * Where a race stands, read only from the TSE's own "situação" of each candidate (never recalculated):
+ * "decidido" (someone elected), "segundo-turno" (runoff) or "em-apuracao" (no situação yet).
+ */
+export function raceStatus(result) {
+  const kinds = (result?.candidates || []).map(c => c.kind);
+  if (kinds.includes('eleito')) return 'decidido';
+  if (kinds.includes('segundo-turno')) return 'segundo-turno';
+  return 'em-apuracao';
+}
+
+export const electedCandidates = result => (result?.candidates || []).filter(c => c.kind === 'eleito');
+
+/** States whose race for this office goes to a runoff, according to the TSE. */
+export const runoffStates = data => UFS.filter(uf => raceStatus(data?.uf?.[uf]) === 'segundo-turno');
+
 /** What the map needs to colour and label one place. */
 export function mapRow(result, name) {
   if (!result) return { name, empty: true, completion: 0, electorate: 0 };
   const first = leader(result);
+  const status = raceStatus(result);
   return {
+    status,
+    runnerUpName: result.candidates[1]?.name,
+    runnerUpParty: result.candidates[1]?.party,
     name,
     empty: !first,
     completion: (result.sections?.pct || 0) / 100,
@@ -40,23 +60,48 @@ export const stateRows = data => Object.fromEntries(UFS.map(uf => {
   return [uf, row];
 }));
 
-/** Unpacks the shipped municipal file into result-like objects keyed by IBGE code. */
-export function unpackMunicipalities(pack, national, geo) {
+/** Columns of the shipped municipal files (public/data/tse/<round>/<office>-municipios/<UF>.json). */
+export const PACK_FIELDS = ['apuradoPct', 'eleitorado', 'comparecimento', 'validos', 'brancos', 'nulos', 'anuladosSubJudice', '...votos'];
+
+/** One packed municipality row, read by column name (older files have no "anuladosSubJudice" column). */
+export function readPackRow(fields, values) {
+  const at = name => fields.indexOf(name);
+  const get = name => (at(name) >= 0 ? values[at(name)] || 0 : 0);
+  const votesAt = at('...votos') >= 0 ? at('...votos') : 6;
+  return {
+    apurado: get('apuradoPct'), electorate: get('eleitorado'), turnout: get('comparecimento'),
+    valid: get('validos'), blank: get('brancos'), nulls: get('nulos'), subJudice: get('anuladosSubJudice'),
+    votes: values.slice(votesAt),
+  };
+}
+
+/**
+ * Unpacks the shipped municipal file into result-like objects keyed by IBGE code. `reference` is the
+ * race the file belongs to (Brazil for president, the state for governor): it gives names and parties.
+ * Shares are over válidos + anulados sub judice, which is how the TSE computes them.
+ */
+export function unpackMunicipalities(pack, reference, geo) {
   const rows = new Map();
   if (!pack) return rows;
-  const byNumber = Object.fromEntries((national?.candidates || []).map(c => [c.n, c]));
+  const fields = pack.fields || PACK_FIELDS.filter(f => f !== 'anuladosSubJudice');
+  const byNumber = Object.fromEntries((reference?.candidates || []).map(c => [c.n, c]));
   for (const [ibge, values] of Object.entries(pack.m)) {
-    const [apurado, electorate, turnout, valid, blank, nulls, ...votes] = values;
-    const candidates = pack.candidates.map((n, i) => ({
-      n, name: byNumber[n]?.name || n, party: byNumber[n]?.party || '', sq: byNumber[n]?.sq,
-      votes: votes[i] || 0, pct: valid ? (100 * (votes[i] || 0)) / valid : 0,
-    })).sort((a, b) => b.votes - a.votes);
-    const total = valid + blank + nulls;
+    const { apurado, electorate, turnout, valid, blank, nulls, subJudice, votes } = readPackRow(fields, values);
+    const base = valid + subJudice;
+    const candidates = pack.candidates.map((n, i) => {
+      const ref = byNumber[n];
+      const c = { n, name: ref?.name || n, party: ref?.party || '', sq: ref?.sq, votes: votes[i] || 0, pct: base ? (100 * (votes[i] || 0)) / base : 0 };
+      if (ref?.status) { c.status = ref.status; c.kind = ref.kind; }
+      if (ref?.validity) c.validity = ref.validity;
+      return c;
+    }).sort((a, b) => b.votes - a.votes);
+    // The TSE's total of votes includes the ones annulled sub judice (outside válidos, brancos and nulos).
+    const total = valid + blank + nulls + subJudice;
     rows.set(ibge, {
       scope: ibge, scopeType: 'mu', name: geo?.byId.get(ibge)?.name || ibge,
       sections: { pct: apurado }, electorate, turnout, turnoutPct: electorate ? (100 * turnout) / electorate : 0,
       abstention: Math.max(0, electorate - turnout), abstentionPct: electorate ? (100 * (electorate - turnout)) / electorate : 0,
-      totalVotes: total, valid, validPct: total ? (100 * valid) / total : 0, blank, blankPct: total ? (100 * blank) / total : 0,
+      totalVotes: total, valid, validComputed: base, subJudice, validPct: total ? (100 * base) / total : 0, blank, blankPct: total ? (100 * blank) / total : 0,
       null: nulls, nullPct: total ? (100 * nulls) / total : 0, candidates, finished: apurado >= 100,
       updated: pack.updated,
     });
