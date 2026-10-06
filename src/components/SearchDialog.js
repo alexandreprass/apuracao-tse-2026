@@ -34,9 +34,10 @@ export function findEntries(geo, candidates, query, only = null) {
 }
 
 /** Every candidate of the offices already published: president nationally, governors per state. */
-export function searchableCandidates(presidents, governors) {
+export function searchableCandidates(presidents, governors, senators = null) {
   const list = (presidents?.br?.candidates || []).map(c => ({ ...c, office: 'presidente', uf: null }));
   for (const uf of UFS) for (const c of governors?.uf?.[uf]?.candidates || []) list.push({ ...c, office: 'governador', uf });
+  for (const uf of UFS) for (const c of senators?.uf?.[uf]?.candidates || []) list.push({ ...c, office: 'senador', uf });
   return list.sort((a, b) => b.votes - a.votes);
 }
 

@@ -3,7 +3,7 @@ import { html } from './lib/html.js';
 import { ENABLED_OFFICES, OFFICES, ROUNDS, TSE_SITE } from './config.js';
 import { runoffCandidates, shareText } from './data/analysis.js';
 import { useMyMunicipality } from './hooks/useMyMunicipality.js';
-import { useOffice } from './hooks/useData.js';
+import { officeFeed, useFeed, useOffice } from './hooks/useData.js';
 import { useHotkey } from './hooks/useHotkey.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
@@ -55,6 +55,8 @@ export function App() {
   const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
   const presidents = useOffice(1, 'presidente');
   const governors = useOffice(1, 'governador');
+  // Senators join the search when it opens (or on their own pages), so other pages do not load 27 more states.
+  const senators = useFeed(searching || route.office === 'senador' ? officeFeed(1, 'senador') : null);
 
   const title = route.page === 'resultados'
     ? `${OFFICES[route.office].label} · ${placeTitle(route, geo)} · ${ROUNDS[route.round].label}`
@@ -91,7 +93,7 @@ export function App() {
   };
 
   // Search covers every published race: president nationally and the governor of each state.
-  const candidates = useMemo(() => searchableCandidates(presidents.data, governors.data), [presidents.data, governors.data]);
+  const candidates = useMemo(() => searchableCandidates(presidents.data, governors.data, senators.data), [presidents.data, governors.data, senators.data]);
   const finalists = runoffCandidates(presidents.data?.br).map(c => c.n);
   const pick = entry => {
     if (entry.type === 'candidate') {

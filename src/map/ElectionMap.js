@@ -368,6 +368,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           onPointerEnter=${labelEnter(state.uf)} onPointerLeave=${() => setHover(null)}>
           <b>${state.uf}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
           ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
+          ${paint.dots?.(result)?.length > 0 && html`<span class="seat-dots" aria-hidden="true">${paint.dots(result).map((c, i) => html`<i key=${i} style=${{ background: c }}></i>`)}</span>`}
         </button>`;
       })}
       ${CALLOUTS.map((code, i) => {
@@ -378,6 +379,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           onPointerEnter=${labelEnter(code)} onPointerLeave=${() => setHover(null)}>
           <b>${code}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
           ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
+          ${paint.dots?.(result)?.length > 0 && html`<span class="seat-dots" aria-hidden="true">${paint.dots(result).map((c, i) => html`<i key=${i} style=${{ background: c }}></i>`)}</span>`}
         </button>`;
       })}
     </div>`}

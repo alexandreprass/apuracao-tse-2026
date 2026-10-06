@@ -37,7 +37,49 @@ export function RaceBadge({ result, round = 1 }) {
   return html`<span class=${'badge ' + tone}>${label}</span>`;
 }
 
-export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus = false, round = 1 }) {
+/** Races with several seats (senate) get the elected per state; the others who leads and by how much. */
+export function StatesTable(props) {
+  const multiSeat = UFS.some(uf => (props.data.uf?.[uf]?.seats || 1) > 1);
+  return multiSeat ? html`<${SeatsTable} ...${props}/>` : html`<${RaceTable} ...${props}/>`;
+}
+
+/** Senate: both elected of each state (TSE status), the most voted not elected, count and turnout. */
+function SeatsTable({ data, onState, staleUfs = [] }) {
+  const [region, setRegion] = useState('');
+  const [query, setQuery] = useState('');
+  const { header, apply } = useSort('uf', 'asc');
+  const rows = UFS.filter(uf => data.uf?.[uf])
+    .filter(uf => !region || regionOf(uf) === region)
+    .filter(uf => !query || normalize(stateName(uf) + ' ' + uf + ' ' + data.uf[uf].candidates.slice(0, 4).map(c => c.name + ' ' + c.party).join(' ')).includes(normalize(query)))
+    .map(uf => ({ uf, r: data.uf[uf] }));
+  const sorted = apply(rows, { uf: x => stateName(x.uf), count: x => x.r.sections.pct, turnout: x => x.r.turnoutPct, electorate: x => x.r.electorate });
+  return html`<div class="table-tools">
+      <input type="search" placeholder="Filtrar estado, candidato ou partido" aria-label="Filtrar estado, candidato ou partido" value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
+      <select aria-label="Filtrar por região" value=${region} onChange=${e => setRegion(e.currentTarget.value)}>
+        <option value="">Todas as regiões</option>${REGIONS.map(r => html`<option key=${r} value=${r}>${r}</option>`)}
+      </select>
+    </div>
+    <div class="table-wrap"><table class="data-table seats-table">
+      <caption class="sr-only">Eleitos por estado</caption>
+      <thead><tr>${header('uf', 'Estado')}<th scope="col">Eleitos (situação do TSE)</th><th scope="col">Mais votado não eleito</th>
+        ${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
+      <tbody>${sorted.map(({ uf, r }) => {
+        const elected = r.candidates.filter(c => c.kind === 'eleito');
+        const out = r.candidates.find(c => c.kind !== 'eleito' && c.votes > 0);
+        return html`<tr key=${uf}>
+          <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${stateName(uf)}</button> <small class="muted">${uf}</small>
+            ${staleUfs?.includes(uf) && html` <${StaleTag} updated=${r.updated} short/>`}</th>
+          <td>${elected.length ? elected.map(c => html`<div key=${c.n}><${Who} c=${c}/> <small class="muted">${pct(c.pct)}</small></div>`) : html`<span class="badge is-pending">Em apuração</span>`}</td>
+          <td>${out ? html`<${Who} c=${out}/> <small class="muted">${pct(out.pct)}</small>` : '—'}</td>
+          <td class="num">${pct(r.sections.pct)}</td>
+          <td class="num">${pct(r.turnoutPct)}</td>
+          <td class="num">${int(r.electorate)}</td>
+        </tr>`;
+      })}</tbody>
+    </table></div>`;
+}
+
+function RaceTable({ data, onState, exterior, staleUfs = [], showStatus = false, round = 1 }) {
   const [region, setRegion] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');

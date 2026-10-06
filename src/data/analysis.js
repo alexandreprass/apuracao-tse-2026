@@ -53,6 +53,9 @@ export function mapRow(result, name) {
     margin: marginPoints(result) / 100,
     color: first ? partyColor(first.party) : null,
     finished: result.finished,
+    seats: result.seats || 1,
+    // Elected per the TSE status (two senators per state in 2026), never recalculated.
+    elected: electedCandidates(result).map(c => ({ name: c.name, party: c.party })),
   };
 }
 
@@ -144,6 +147,9 @@ export function statesWon(data) {
 export const runoffCandidates = result => (result?.candidates || []).filter(c => c.kind === 'segundo-turno');
 
 /** Seats (or leads) per party across states, for governors and senators. */
+/** Seats in dispute across the states (senate: 2 per state in 2026), from the TSE "vagas" of each race. */
+export const seatsInDispute = data => UFS.reduce((sum, uf) => sum + (data?.uf?.[uf] ? data.uf[uf].seats || 1 : 0), 0);
+
 export function partyTally(data, { electedOnly = false } = {}) {
   const tally = {};
   for (const uf of UFS) {

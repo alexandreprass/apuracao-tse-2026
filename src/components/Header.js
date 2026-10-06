@@ -16,7 +16,10 @@ export function TopBar({ route, theme, onToggleTheme, onSearch, onShare, status 
     </a>
     <${OfficeTabs} route=${route}/>
     <nav class="round-tabs" aria-label="Turno">
-      ${[1, 2].map(round => html`<a key=${round} href=${`#/${round}turno/${OFFICES[route.office].rounds.includes(round) ? route.office : 'presidente'}`}
+      ${[1, 2].map(round => inResults && !OFFICES[route.office].rounds.includes(round)
+        // Senate (and deputies): no 2º turno, so the toggle is shown disabled instead of leaving the office.
+        ? html`<span key=${round} class="is-disabled" aria-disabled="true" title=${`${OFFICES[route.office].plural}: só 1º turno`}>${ROUNDS[round].label}</span>`
+        : html`<a key=${round} href=${`#/${round}turno/${OFFICES[route.office].rounds.includes(round) ? route.office : 'presidente'}`}
         aria-current=${inResults && route.round === round ? 'page' : undefined} title=${`${ROUNDS[round].label} · ${ROUNDS[round].date}`}>
         ${ROUNDS[round].label}</a>`)}
       <a href="#/comparar" class="round-compare" aria-current=${route.page === 'comparar' ? 'page' : undefined}>Comparar</a>

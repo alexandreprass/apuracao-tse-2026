@@ -66,8 +66,10 @@ export function CountStrip({ result, actions }) {
 }
 
 /** Scoreboard in thin rows: leader 48px (% in 20px), others 36px; party stripe, name · party, %, votes, bar. */
-export function Scoreboard({ result, round, show = 4, focus = null }) {
+export function Scoreboard({ result, round, show: minShow = 4, focus = null }) {
   const list = result.candidates;
+  // Every elected candidate (two senators) is always visible.
+  const show = Math.max(minShow, list.reduce((last, c, i) => (c.kind === 'eleito' ? i + 1 : last), 0));
   // A candidate picked in the search is always on screen (opened list if needed).
   const [open, setOpen] = useState(() => list.findIndex(c => c.n === focus) >= show);
   const visible = open ? list : list.slice(0, show);

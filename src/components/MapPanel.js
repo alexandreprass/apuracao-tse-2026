@@ -14,7 +14,7 @@ const RAMP_LABELS = ['<5', '5–15', '15–30', '>30'];
  * coloured by who leads and by how much, or by how much has been counted.
  */
 export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf,
-  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false }) {
+  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false, seatLegend = null }) {
   const [metric, setMetric] = useState(initialMetric);
   const touch = useMediaQuery('(pointer: coarse)');
   const verb = touch ? 'Toque' : 'Clique';
@@ -47,12 +47,15 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     // Runoff states, from the TSE status of their candidates: hatched, with a badge on the label.
     hatch: row => statusMode && row?.status === 'segundo-turno',
     badge: row => (statusMode && row?.status === 'segundo-turno' ? '2º turno' : null),
+    // Races with several seats (senate): one dot per elected, in its party colour, on the state label.
+    dots: row => (statusMode && row?.seats > 1 ? row.elected.map(e => partyFill(e.party, 1, theme).fill) : null),
     tooltip: row => {
       if (!row || row.empty) return emptyLabel;
       if (row.inherited) return `${verb} para ver o resultado do município`;
       const stale = row.stale ? ` · boletim das ${row.staleBulletin || '—'} (TSE sem resposta)` : '';
       if (metric === 'apurado') return `${pct(row.completion * 100)} das seções apuradas${stale}`;
       if (showStatus && !uf && row.status === 'segundo-turno') return `${statusLabel}: ${titleCase(row.leaderName)} (${row.leaderParty}) × ${titleCase(row.runnerUpName)} (${row.runnerUpParty})${stale}`;
+      if (showStatus && !uf && row.seats > 1 && row.elected.length) return `Eleitos: ${row.elected.map(e => `${titleCase(e.name)} (${e.party})`).join(', ')}${stale}`;
       if (showStatus && !uf && row.status === 'decidido') return `Eleito: ${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
       return `${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
     },
@@ -100,7 +103,12 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
         onState=${onState} onMunicipality=${onMunicipality}/>
     </div>
     <div class="legend">
-      ${statusMode ? html`
+      ${statusMode && seatLegend ? html`
+          <span class="legend-side legend-key">Cor do partido do mais votado; um ponto por eleito, na cor do partido.</span>
+          ${seatLegend.map(entry => html`<span class="legend-side" key=${entry.party}>
+            <i class="swatch" style=${{ background: partyFill(entry.party, 1, theme).fill }}></i><b>${entry.party}</b> ${int(entry.count)} ${entry.count === 1 ? 'cadeira' : 'cadeiras'}</span>`)}
+          ${staleCount > 0 && html`<span class="legend-side"><i class="swatch swatch-stale"></i>boletim atrasado</span>`}`
+      : statusMode ? html`
           <span class="legend-side legend-key">Cor do partido de quem venceu ou lidera.
             ${statusLegend.some(e => e.open) && html`<i class="swatch swatch-runoff"></i>hachura e selo “${statusLabel}”: ${statusLabel === '2º turno' ? 'disputa vai ao 2º turno' : 'em apuração'}`}</span>
           ${statusLegend.slice(0, 10).map(entry => html`<span class="legend-side" key=${entry.party}>

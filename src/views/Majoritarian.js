@@ -3,7 +3,7 @@ import { html } from '../lib/html.js';
 import { OFFICES, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS } from '../config.js';
 import { brasiliaStamp, compact, int, pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
-import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
+import { electedCandidates, hasRunoff, mapRow, partyTally, seatsInDispute, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
 import { stateName, UFS } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
 import { readTrend, recordTrend } from '../data/trend.js';
@@ -158,7 +158,14 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
   const elected = partyTally(data, { electedOnly: true });
   const onState = code => route.go({ uf: code, ibge: null });
   const label = OFFICES[office].plural;
-  const strip = html`<div class="summary-chips">
+  // Several seats per state (senate, 2 in 2026): seats by party, a dot per elected on the map, no runoff.
+  const seats = seatsInDispute(data);
+  const multiSeat = seats > present.length;
+  const electedCount = elected.reduce((s, r) => s + r.count, 0);
+  const strip = multiSeat ? html`<div class="summary-chips">
+    <span class="chip is-elected"><b>${electedCount}</b> de ${seats} cadeiras com eleito definido pelo TSE</span>
+    <span class="chip"><b>${present.length}</b> estados · ${seats / present.length} vagas em cada</span>
+  </div>` : html`<div class="summary-chips">
     <span class="chip is-elected"><b>${decided.length}</b> ${round > 1 ? 'eleitos no 2º turno' : 'eleitos no 1º turno'}</span>
     ${round === 1 && html`<span class="chip is-runoff"><b>${runoffs.length}</b> ${runoffs.length === 1 ? 'estado vai' : 'estados vão'} ao 2º turno (${ROUNDS[2].date})</span>`}
     ${round > 1 && present.length - decided.length > 0 && html`<span class="chip"><b>${present.length - decided.length}</b> em apuração</span>`}
@@ -166,8 +173,12 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
   </div>`;
   const map = html`<${MapPanel} compact key=${office + round} geo=${geo} theme=${theme} states=${states} uf=${null} showStatus initialMetric="situacao"
     statusLabel=${round > 1 ? 'em apuração' : '2º turno'} emptyLabel=${round > 1 ? 'Sem 2º turno neste estado' : 'Sem resultados'}
-    onState=${onState} title="Mapa por estado"/>`;
-  const scoreboard = html`<div class="score-card">
+    onState=${onState} title="Mapa por estado" seatLegend=${multiSeat ? elected : null}/>`;
+  const scoreboard = multiSeat ? html`<div class="score-card">
+    <div class="score-head"><span class="eyebrow">Cadeiras conquistadas por partido · ${seats} em disputa</span></div>
+    <${PartyBars} rows=${elected} total=${seats} unit="cadeiras" limit=${12}/>
+    <p class="muted small">Eleitos conforme a situação publicada pelo TSE, ${seats / present.length} por estado. Clique num estado para ver todos os candidatos.</p>
+  </div>` : html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">${round > 1 ? 'Eleitos no 2º turno por partido' : 'Eleitos no 1º turno por partido'}</span></div>
     <${PartyBars} rows=${elected} unit="cadeiras" limit=${8}/>
     <p class="muted small">Situação de cada candidato conforme o TSE (eleito, 2º turno, não eleito). Clique num estado para ver todos os candidatos.</p>
@@ -297,10 +308,15 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
             ? html`<button class="button is-small is-on" aria-pressed="true" onClick=${() => setMyMunicipality(null)}><${Icon} name="star" size=${14}/> Meu município</button>`
             : html`<button class="button is-small" aria-pressed="false" onClick=${() => setMyMunicipality(ibge)}><${Icon} name="star" size=${14}/> Marcar como meu município</button>`)}
         </div>
-        <${Scoreboard} result=${result} round=${round} focus=${route.focus}/>
+        <${Scoreboard} result=${result} round=${OFFICES[office].rounds.length > 1 ? round : null} focus=${route.focus}/>
         ${(() => {
-          const [a, b] = result.candidates.filter(c => c.votes > 0);
-          return a && b && html`<p class="hero-margin">${titleCase(a.name)} ${result.finished ? 'teve' : 'está com'} ${int(a.votes - b.votes)} votos a mais que ${titleCase(b.name)}</p>`;
+          const seats = result.seats || 1;
+          const voted = result.candidates.filter(c => c.votes > 0);
+          const [a, b] = [voted[seats - 1], voted[seats]];
+          if (!a || !b) return null;
+          return seats > 1
+            ? html`<p class="hero-margin">${titleCase(a.name)} ${result.finished ? 'ficou' : 'está'} com a ${seats}ª vaga por ${int(a.votes - b.votes)} votos à frente de ${titleCase(b.name)}</p>`
+            : html`<p class="hero-margin">${titleCase(a.name)} ${result.finished ? 'teve' : 'está com'} ${int(a.votes - b.votes)} votos a mais que ${titleCase(b.name)}</p>`;
         })()}
         ${!ibge && (federal ? !uf : true) && html`<${RaceNote} result=${result} round=${round} office=${office} uf=${uf}/>`}
       </div>`;
