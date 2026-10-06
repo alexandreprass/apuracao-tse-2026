@@ -32,11 +32,33 @@ export function toHash({ page = 'resultados', round = 1, office = 'presidente', 
   return `#/${path}${focus ? `?c=${encodeURIComponent(focus)}` : ''}`;
 }
 
+/**
+ * The address with the municipality's real state, or null when it is already right. A link like
+ * #/1turno/presidente/SP/2927408 (Salvador) shows Bahia, so the address must say /BA/ too.
+ * Everything else in the address (the query, e.g. ?c= or ?fonte=) is kept as it is.
+ */
+export function canonicalHash(hash) {
+  const route = parseHash(hash);
+  if (route.page !== 'resultados' || !route.ibge) return null;
+  const [path, ...query] = String(hash || '').replace(/^#\/?/, '').split('?');
+  const parts = path.split('/').filter(Boolean);
+  if ((parts[2] || '').toUpperCase() === route.uf) return null;
+  parts[2] = route.uf;
+  return `#/${parts.join('/')}${query.length ? `?${query.join('?')}` : ''}`;
+}
+
+/** Rewrites a wrong state in the address in place (replaceState: no extra history entry, no hashchange). */
+export function fixAddress(loc = location, hist = history) {
+  const fixed = canonicalHash(loc.hash);
+  if (fixed) hist.replaceState(hist.state, '', `${loc.pathname}${loc.search}${fixed}`);
+  return fixed;
+}
+
 export function useRoute() {
-  const [route, setRoute] = useState(() => parseHash(location.hash));
+  const [route, setRoute] = useState(() => { fixAddress(); return parseHash(location.hash); });
 
   useEffect(() => {
-    const sync = () => setRoute(parseHash(location.hash));
+    const sync = () => { fixAddress(); setRoute(parseHash(location.hash)); };
     addEventListener('hashchange', sync);
     return () => removeEventListener('hashchange', sync);
   }, []);

@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from 'preact/hooks';
-import { Feed, getFeed, isFinished, pollDelay } from '../data/feed.js';
-import { loadMunicipality, loadMunicipalPack, loadOffice, loadProportional, STATIC_TTL_MS } from '../data/source.js';
+import { Feed, followFeed, getFeed, isFinished, municipalityFeed as createMunicipalityFeed, pollDelay } from '../data/feed.js';
+import { loadMunicipalPack, loadOffice, loadProportional, STATIC_TTL_MS } from '../data/source.js';
 
 export { isFinished, pollDelay };
 
@@ -30,12 +30,15 @@ export const useOffice = (round, office) => useFeed(officeFeed(round, office));
 export const useProportional = (round, office, uf) => useFeed(uf ? getFeed(`prop|${round}|${office}|${uf}`,
   () => new Feed(previous => loadProportional(round, office, uf, previous), { delay: data => pollDelay(data, round) })) : null);
 
-/** One municipality read live from the TSE, polled like the rest while the count runs. */
+/** One municipality read live from the TSE; it reloads when the office's boletim changes. */
 export const municipalityFeed = (round, office, ibge) => getFeed(`mu|${round}|${office}|${ibge}`,
-  () => new Feed(previous => loadMunicipality(round, office, ibge, previous), { delay: data => pollDelay(data, round) }));
+  () => createMunicipalityFeed(round, office, ibge, officeFeed(round, office)));
 
-export const useLiveMunicipality = (round, office, ibge, enabled) =>
-  useFeed(enabled && ibge ? municipalityFeed(round, office, ibge) : null);
+export function useLiveMunicipality(round, office, ibge, enabled) {
+  const feed = enabled && ibge ? municipalityFeed(round, office, ibge) : null;
+  useEffect(() => (feed ? followFeed(feed, officeFeed(round, office), feed.keyOf) : undefined), [feed]);
+  return useFeed(feed);
+}
 
 /** One value from a promise-returning function, re-run when `key` changes (and every `every` ms). */
 export function useAsync(key, fn, every = 0) {

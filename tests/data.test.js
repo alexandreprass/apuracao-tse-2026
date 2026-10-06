@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { normalizeResult, num, parseTseDate, statusKind } from '../src/data/normalize.js';
 import { leader, mapRow, marginPoints, regionTotals, runoffCandidates, shareText, statesWon, unpackMunicipalities } from '../src/data/analysis.js';
-import { photoUrl, tseProgressUrl, tseResultUrl } from '../src/config.js';
+import { photoUrl, pollsClosed, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS, tseProgressUrl, tseResultUrl } from '../src/config.js';
 import { UFS } from '../src/data/states.js';
-import { parseHash, toHash } from '../src/hooks/useRoute.js';
+import { canonicalHash, fixAddress, parseHash, toHash } from '../src/hooks/useRoute.js';
 import { isFinished, pollDelay } from '../src/data/feed.js';
 import { titleCase } from '../src/lib/format.js';
 import { comebackEstimate } from '../src/data/estimate.js';
@@ -169,6 +169,24 @@ test('evolution is kept in the browser, one point per boletim, bounded', () => {
   assert.equal(store.get('apuracao:evolucao:v1:place0'), null);
 });
 
+test('evolution: a new boletim with the same % apurado replaces the last point instead of duplicating it', () => {
+  const mem = new Map();
+  const store = { get: (k, f = null) => (mem.has(k) ? JSON.parse(mem.get(k)) : f), set: (k, v) => mem.set(k, JSON.stringify(v)), remove: k => mem.delete(k) };
+  const at = (pct, time, a = 50.1) => ({ sections: { pct }, updated: time, candidates: [{ n: '13', name: 'A', party: 'PT', pct: a }, { n: '22', name: 'B', party: 'PL', pct: 100 - a }] });
+  recordTrend('k', at(10, '25/10/2026 18:00:00'), store);
+  recordTrend('k', at(20, '25/10/2026 18:10:00', 50.3), store);
+  recordTrend('k', at(20, '25/10/2026 18:11:00', 50.4), store); // same %, later boletim: replaces
+  let list = readTrend('k', store);
+  assert.deepEqual(list.map(p => [p.counted, p.time]), [[10, '25/10/2026 18:00:00'], [20, '25/10/2026 18:11:00']]);
+  assert.equal(list[1].shares[0].pct, 50.4, 'the newer shares are kept');
+  recordTrend('k', at(20, '25/10/2026 18:09:00', 49), store); // same %, earlier boletim: ignored
+  recordTrend('k', at(15, '25/10/2026 18:12:00', 49), store); // fewer sections: ignored
+  list = readTrend('k', store);
+  assert.deepEqual(list.map(p => [p.counted, p.time, p.shares[0].pct]), [[10, '25/10/2026 18:00:00', 50.1], [20, '25/10/2026 18:11:00', 50.4]]);
+  recordTrend('k', at(30, '25/10/2026 18:20:00'), store);
+  assert.deepEqual(readTrend('k', store).map(p => p.counted), [10, 20, 30], 'moving % still adds points');
+});
+
 test('names: Roman numerals without breaking accented names', () => {
   assert.equal(titleCase('IVÂNIA SILVA'), 'Ivânia Silva');
   assert.equal(titleCase('JOÃO II'), 'João II');
@@ -186,9 +204,46 @@ test('polling: live counts every 30 s, waiting rounds less often, finished count
   assert.equal(pollDelay({ source: 'local', br: { finished: true }, uf: {} }, 1), null);
   const waiting = { status: 'not-published', uf: {} };
   assert.equal(pollDelay(waiting, 2, new Date('2026-10-10T12:00:00-03:00').getTime()), 5 * 60000);
-  assert.equal(pollDelay(waiting, 2, new Date('2026-10-25T16:30:00-03:00').getTime()), 60000);
-  assert.equal(pollDelay(waiting, 2, new Date('2026-10-25T21:00:00-03:00').getTime()), 60000);
+  assert.equal(pollDelay(waiting, 2, new Date('2026-10-25T16:30:00-03:00').getTime()), 5 * 60000, 'election day, polls still open');
+  assert.equal(pollDelay(waiting, 2, new Date('2026-10-25T21:00:00-03:00').getTime()), 30000, 'polls closed, nothing yet');
   assert.equal(pollDelay({ status: 'error', uf: {} }, 2), 30000, 'TSE unreachable: every 30 s, never stops');
   assert.equal(pollDelay({ ...live, br: { finished: true }, liveError: 'x', stale: true }, 2), 30000);
   assert.equal(pollDelay({ ...live, br: { finished: true }, staleUfs: ['SP'] }, 2), 30000);
+});
+
+test('2º turno, before the first boletim: every 5 min until the polls close at 17h (Brasília), every 30 s from then on', () => {
+  const waiting = { status: 'not-published', uf: {} };
+  const close = new Date(ROUNDS[2].closesAt).getTime();
+  assert.equal(close, Date.parse('2026-10-25T20:00:00Z'), 'cutoff comes from the round config: 25/10/2026 17:00 in Brasília');
+  assert.equal(POLL_WAITING_MS, 300000);
+  assert.equal(POLL_LIVE_MS, 30000);
+  for (const [at, ms] of [
+    ['2026-10-06T11:00:00-03:00', 300000], ['2026-10-25T08:00:00-03:00', 300000],
+    ['2026-10-25T16:00:00-03:00', 300000], [close - 1, 300000],
+    [close, 30000], ['2026-10-25T17:00:01-03:00', 30000], ['2026-10-25T23:30:00-03:00', 30000], ['2026-10-27T10:00:00-03:00', 30000],
+  ]) {
+    const now = typeof at === 'number' ? at : new Date(at).getTime();
+    assert.equal(pollDelay(waiting, 2, now), ms, new Date(now).toISOString());
+    assert.equal(pollsClosed(2, now), ms === 30000);
+  }
+  // A TSE failure is retried every 30 s whatever the time.
+  assert.equal(pollDelay({ status: 'error', uf: {} }, 2, new Date('2026-10-10T12:00:00-03:00').getTime()), 30000);
+});
+
+test('a municipality from another state rewrites the address to its real state, without a new history entry', () => {
+  assert.equal(canonicalHash('#/1turno/presidente/SP/2927408'), '#/1turno/presidente/BA/2927408');
+  assert.equal(canonicalHash('#/2turno/presidente/sp/2927408?c=13'), '#/2turno/presidente/BA/2927408?c=13');
+  assert.equal(canonicalHash('#/1turno/presidente/BA/2927408'), null, 'already right');
+  assert.equal(canonicalHash('#/1turno/presidente/SP'), null);
+  assert.equal(canonicalHash('#/1turno/presidente/SP/9999999'), null, 'unknown code: dropped by the parser, address untouched');
+  assert.equal(canonicalHash('#/sobre'), null);
+  const calls = [];
+  const hist = { state: { k: 1 }, replaceState: (...args) => calls.push(['replace', ...args]), pushState: (...args) => calls.push(['push', ...args]) };
+  const loc = { pathname: '/apuracao-tse-2026/', search: '?fonte=tse', hash: '#/1turno/presidente/SP/2927408' };
+  assert.equal(fixAddress(loc, hist), '#/1turno/presidente/BA/2927408');
+  assert.deepEqual(calls, [['replace', { k: 1 }, '', '/apuracao-tse-2026/?fonte=tse#/1turno/presidente/BA/2927408']]);
+  assert.equal(parseHash('#/1turno/presidente/BA/2927408').uf, 'BA');
+  calls.length = 0;
+  assert.equal(fixAddress({ ...loc, hash: '#/1turno/presidente/BA/2927408' }, hist), null);
+  assert.deepEqual(calls, [], 'nothing to fix: no history call');
 });

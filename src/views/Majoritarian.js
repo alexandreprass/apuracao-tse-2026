@@ -1,12 +1,13 @@
 import { useMemo } from 'preact/hooks';
 import { html } from '../lib/html.js';
-import { OFFICES, POLL_LIVE_MS, ROUNDS } from '../config.js';
+import { OFFICES, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS } from '../config.js';
 import { brasiliaStamp, compact, int, pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { mapRow, regionTotals, runoffCandidates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
 import { stateName } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
 import { readTrend, recordTrend } from '../data/trend.js';
+import { noBoletimNotice } from '../data/status.js';
 import { useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useData.js';
 import { useMyMunicipality } from '../hooks/useMyMunicipality.js';
 import { Icon } from '../components/Icon.js';
@@ -64,12 +65,19 @@ function StatesWon({ data }) {
   </ul>`;
 }
 
+/** Amber warning in the body when the TSE cannot be read and there is no boletim to show at all. */
+export function NoBoletim({ data }) {
+  const info = noBoletimNotice(data);
+  return info && html`<${Notice} tone=${info.tone} title=${info.title}>${info.text}${info.detail ? html` <span class="muted small">(${info.detail})</span>` : ''}</${Notice}>`;
+}
+
 /** Before the TSE publishes the runoff: who is in it, when it starts, and an automatic check. */
 export function RunoffWaiting({ office, uf, first, data, geo, onChooseMunicipality }) {
   const scope = uf ? first?.uf?.[uf] : first?.br;
   const finalists = runoffCandidates(scope);
   const round = ROUNDS[2];
   return html`<div class="runoff-waiting">
+    <${NoBoletim} data=${data}/>
     ${office === 'presidente' && geo && html`<${MyMunicipality} geo=${geo} office=${office} officeData=${data} onChoose=${onChooseMunicipality}/>`}
     <${Section} title=${`${OFFICES[office].label} · ${uf ? stateName(uf) : 'Brasil'} · 2º turno`}
       subtitle=${`Votação em ${round.date}. A apuração começa quando as urnas fecham, às 17h (horário de Brasília).`}>
@@ -79,9 +87,11 @@ export function RunoffWaiting({ office, uf, first, data, geo, onChooseMunicipali
             candidate=${{ ...c, status: '2º turno', kind: 'segundo-turno' }} office=${office} uf=${uf}
             note=${`1º turno: ${pct(c.pct)} · ${int(c.votes)} votos`}/>`)}</div>`
         : scope ? html`<${Notice} title="Sem 2º turno">${titleCase(scope.candidates[0]?.name)} foi eleito no 1º turno.</${Notice}>`
+        : first?.status ? html`<p class="muted">Os finalistas aparecem aqui assim que o resultado do 1º turno puder ser lido.</p>`
         : html`<${Loading} text="Carregando os finalistas do 1º turno…"/>`}
       <p class="muted small">Os votos aparecem aqui sozinhos assim que o TSE publicar o primeiro boletim do 2º turno
-        (o site confere a cada 5 minutos, a cada minuto no dia da eleição e a cada ${Math.round(POLL_LIVE_MS / 1000)} segundos se o TSE não responder). Nenhum número é exibido antes disso.</p>
+        (o site confere a cada ${Math.round(POLL_WAITING_MS / 60_000)} minutos até as urnas fecharem, às 17h de ${round.date}, e a cada ${Math.round(POLL_LIVE_MS / 1000)} segundos
+        a partir daí ou se o TSE não responder). Nenhum número é exibido antes disso.</p>
     </${Section}>
   </div>`;
 }
@@ -160,7 +170,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
   if (data.status) {
     if (round === 2) return html`<${Breadcrumb} route=${route} geo=${geo}/><${RunoffWaiting} office=${office} uf=${uf === 'ZZ' ? null : uf}
       first=${firstRound.data} data=${data} geo=${geo} onChooseMunicipality=${onChooseMunicipality}/>`;
-    if (data.status === 'error') return null; // the warning under the status bar explains it and the site keeps trying
+    if (data.status === 'error') return html`<${NoBoletim} data=${data}/>`; // the site keeps trying every 30 s
     return html`<${Notice} tone="error" title="Não foi possível carregar os resultados">${data.message} Tente atualizar em instantes.</${Notice}>`;
   }
 

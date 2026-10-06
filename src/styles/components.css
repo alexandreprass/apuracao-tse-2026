@@ -187,6 +187,7 @@ select, input[type='search'] {
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--ink); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.runoff-waiting { display: grid; gap: var(--space-3); }
 .runoff-waiting .card { display: grid; gap: var(--space-4); }
 .countdown-box { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--sunken); }
 .countdown { display: inline-flex; gap: var(--space-3); flex-wrap: wrap; }
@@ -285,6 +286,8 @@ code { font-size: .9em; padding: 1px 5px; border-radius: 4px; background: var(--
 
 /* Runoff waiting screen. */
 .candidate-score .awaiting { font-size: var(--text-md); font-weight: 500; color: var(--ink-2); }
+/* Beats the big-card score size (36px, and 1.75rem on phones). */
+.candidate.is-big .candidate-score strong.awaiting { font-size: var(--text-md); line-height: 1.4; }
 
 /* Candidate list: the minor candidates fold away so the map comes sooner on phones. */
 .candidates-more summary { cursor: pointer; padding: var(--space-2) 0; color: var(--ink-2); font-weight: 500; }

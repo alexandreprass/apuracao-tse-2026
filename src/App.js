@@ -23,8 +23,8 @@ function About() {
     <ul class="bullets">
       <li><b>1º turno (04/10/2026):</b> a totalização terminou, então o site usa uma cópia dos arquivos oficiais guardada junto com ele
         (mais rápido e não depende do TSE). Para ler direto do TSE, abra o site com <code>?fonte=tse</code> no endereço.</li>
-      <li><b>2º turno (25/10/2026):</b> o site consulta o TSE ao vivo. Antes da apuração ele confere de tempos em tempos (a cada minuto no dia da eleição)
-        e, assim que o primeiro boletim sair, mostra os votos e passa a se atualizar a cada 30 segundos. A tela só é redesenhada quando o TSE publica um boletim novo.</li>
+      <li><b>2º turno (25/10/2026):</b> o site consulta o TSE ao vivo. Antes da apuração ele confere a cada 5 minutos; quando as urnas fecham
+        (17h de Brasília) passa a conferir a cada 30 segundos e, assim que o primeiro boletim sair, mostra os votos e segue se atualizando a cada 30 segundos. A tela só é redesenhada quando o TSE publica um boletim novo.</li>
       <li><b>Se o TSE ficar fora do ar:</b> o site mantém o último boletim recebido (ou a cópia guardada aqui, se for mais nova), avisa no topo de quando são os números e continua tentando a cada 30 segundos.</li>
       <li><b>Evolução da apuração</b> e <b>meu município</b> ficam guardados só neste navegador (localStorage); nada é enviado a nenhum servidor.</li>
       <li>Percentuais de candidatos são sobre os votos válidos. Comparecimento e abstenção são sobre o eleitorado apto.</li>

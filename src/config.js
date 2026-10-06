@@ -30,10 +30,15 @@ export const ROUNDS = {
  */
 export const SOURCE_MODE = { 1: 'bundle-first', 2: 'live-first' };
 
-/** Polling intervals while a count is running, and while waiting for it to start. */
+/**
+ * Polling intervals. Before the polls close (ROUNDS[round].closesAt) the site checks for the first
+ * boletim every 5 minutes; from the closing time on, and while a count runs or the TSE fails, every 30 s.
+ */
 export const POLL_LIVE_MS = 30_000;
 export const POLL_WAITING_MS = 5 * 60_000;
-export const POLL_ELECTION_DAY_MS = 60_000;
+
+/** True from the moment the polls close for that round (17h in Brasília on the round's date). */
+export const pollsClosed = (round, now = Date.now()) => now >= new Date(ROUNDS[round].closesAt).getTime();
 
 export const electionCode = (round, office) => ROUNDS[round][OFFICES[office].federal ? 'federal' : 'state'];
 

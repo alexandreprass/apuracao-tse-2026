@@ -15,8 +15,8 @@ Publicado em: https://alexandreprass.github.io/apuracao-tse-2026/
   de quem lidera e pela vantagem, ou pelo % apurado. Clique num estado ou município para abrir o resultado dele.
 - **Tabelas** por estado (com o **exterior separado**) e por município, com busca, filtro por região ou partido e ordenação.
 - **Votos por região**, estados vencidos por candidato.
-- **2º turno (25/10/2026)** pronto: mostra os finalistas, contagem regressiva e confere o TSE sozinho; quando sai o primeiro
-  boletim, os votos aparecem e passam a se atualizar a cada 30 s (com gráfico da evolução desde que a página foi aberta).
+- **2º turno (25/10/2026)** pronto: mostra os finalistas, contagem regressiva e confere o TSE sozinho (a cada 5 minutos até
+  as urnas fecharem às 17h de Brasília, depois a cada 30 s); quando sai o primeiro boletim, os votos aparecem e passam a se atualizar a cada 30 s (com gráfico da evolução desde que a página foi aberta).
 - **Busca** (tecla `/`) por candidato, número, estado, município ou “exterior”; **compartilhar** (link + resumo);
   **tema claro/escuro**; links diretos para qualquer recorte.
 - Governadores, Senado, Deputados e Comparações aparecem como “em breve” (próximas etapas). Os arquivos oficiais desses
@@ -81,7 +81,7 @@ src/config.js            códigos das eleições, cargos, URLs do TSE, modo da f
 src/data/normalize.js    converte os JSON do TSE num formato enxuto (usado pelo site e pelo script)
 src/data/source.js       carrega do TSE ou da cópia local, com reserva
 src/data/analysis.js     contas derivadas (regiões, estados vencidos, mapa, finalistas)
-src/hooks/useData.js     carregamento + atualização automática (30 s ao vivo; 1–5 min aguardando)
+src/hooks/useData.js     carregamento + atualização automática (30 s ao vivo e depois que as urnas fecham; 5 min antes)
 src/views/Majoritarian.js página de presidente (e base para governador/senado)
 src/components/          cabeçalho, barra de status, cartões, mapa, tabelas, busca, gráfico
 src/map/                 mapa em Canvas 2D (geografia IBGE em TopoJSON)

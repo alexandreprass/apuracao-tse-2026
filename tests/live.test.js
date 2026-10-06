@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { test, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { Feed, pollDelay } from '../src/data/feed.js';
+import { Feed, followFeed, municipalityFeed, pollDelay } from '../src/data/feed.js';
 import { cached, getJson, loadOffice, setFetchTimeout, signature, Unavailable } from '../src/data/source.js';
-import { announcement, statusInfo } from '../src/data/status.js';
+import { announcement, noBoletimNotice, statusInfo } from '../src/data/status.js';
 import { stateRows } from '../src/data/analysis.js';
 import { UFS } from '../src/data/states.js';
 
@@ -21,7 +21,8 @@ function rawFile(place, gen) {
 }
 
 /**
- * Fake TSE. `mode`: "up", "down" (network error), "refuse" (403) or "hang" (never answers until aborted).
+ * Fake TSE. `mode`: "up", "down" (network error), "refuse" (403), "error500" (HTTP 500) or "hang"
+ * (never answers until aborted).
  * `failing`: places that throw. `copy`: shipped copy of the 2º turno (published by the workflow), or null.
  */
 const tse = { mode: 'up', gen: '19:30:00', failing: new Set(), requests: [], copy: null };
@@ -29,6 +30,7 @@ const response = (status, body) => ({ status, ok: status >= 200 && status < 300,
 const fakeFetch = async (url, options = {}) => {
   url = String(url);
   tse.requests.push(url);
+  if (url.endsWith('/municipios.json')) return response(200, { 2927408: ['38490', 'BA'] });
   if (!url.startsWith('https://')) return tse.copy ? response(200, tse.copy) : response(404, null);
   if (tse.mode === 'hang') {
     return new Promise((_, reject) => options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
@@ -36,6 +38,7 @@ const fakeFetch = async (url, options = {}) => {
   const place = /dados\/\w+\/(\w+)-c0001/.exec(url)?.[1];
   if (tse.mode === 'down' || tse.failing.has(place)) throw new TypeError('Failed to fetch');
   if (tse.mode === 'refuse') return response(403, null);
+  if (tse.mode === 'error500') return response(500, null);
   if (!place) return response(404, null);
   return response(200, rawFile(place, tse.gen));
 };
@@ -95,19 +98,26 @@ test('caso 1: TSE failing then recovering keeps polling every 30 s', async () =>
   assert.equal(timers.pending.size, 1);
 });
 
-test('caso 2: a network/CORS error or a refusal keeps the last good data and shows the warning', async () => {
+test('caso 2: a network/CORS error, a refusal or an HTTP 500 keeps the last good data and shows the warning', async () => {
   const timers = fakeTimers();
   const feed = presidentFeed(timers);
   feed.subscribe(() => {});
   await feed.inflight;
   const good = feed.data;
   assert.equal(statusInfo(good, { round: 2 }).kind, 'live');
-  for (const mode of ['down', 'refuse']) {
+  for (const mode of ['down', 'refuse', 'error500']) {
     tse.mode = mode;
     timers.fire();
     await feed.inflight;
     const data = feed.data;
     assert.notEqual(data.status, 'not-published', `${mode}: never back to the countdown`);
+    assert.notEqual(statusInfo(data, { round: 2 }).kind, 'waiting', `${mode}: the status bar does not go back to "aguardando"`);
+    if (mode === 'error500') {
+      // Same warning as before, so the feed keeps the same object (no redraw); the load itself names the 500.
+      const direct = await loadOffice(2, 'presidente', good);
+      assert.match(direct.liveError, /HTTP 500/);
+      assert.deepEqual(direct.br, good.br);
+    }
     assert.deepEqual(data.br, good.br, `${mode}: results kept`);
     assert.equal(Object.keys(data.uf).length, 27);
     assert.ok(data.stale && data.liveError);
@@ -241,12 +251,135 @@ test('with a shipped copy of the 2º turno, one TSE failure neither stops the po
   assert.match(statusInfo(fresh, { round: 2 }).source, /cópia/);
 });
 
-test('before the round is published: "not published", polled every minute on election day', async () => {
+test('before the round is published: "not published", every 5 min until 17h on 25/10, every 30 s after', async () => {
   globalThis.fetch = (orig => async url => (String(url).startsWith('https://') ? response(404, null) : orig(url)))(globalThis.fetch);
   const data = await loadOffice(2, 'presidente');
   assert.equal(data.status, 'not-published');
-  assert.equal(pollDelay(data, 2, new Date('2026-10-25T16:30:00-03:00').getTime()), 60000);
+  assert.equal(pollDelay(data, 2, new Date('2026-10-25T16:30:00-03:00').getTime()), 300000);
   assert.equal(pollDelay(data, 2, new Date('2026-10-10T12:00:00-03:00').getTime()), 300000);
+  assert.equal(pollDelay(data, 2, new Date('2026-10-25T17:00:00-03:00').getTime()), 30000);
+  assert.equal(pollDelay(data, 2, new Date('2026-10-25T19:00:00-03:00').getTime()), 30000);
+  assert.equal(noBoletimNotice(data), null, 'not published is not the "TSE indisponível" warning');
+});
+
+test('timeout: every TSE request is aborted after 10 s (AbortController)', async () => {
+  // A fresh copy of the module: its limit has never been changed by a test.
+  const fresh = await import('../src/data/source.js?timeout-default');
+  assert.equal(fresh.FETCH_TIMEOUT_MS, 10_000);
+  assert.equal(fresh.DEFAULT_FETCH_TIMEOUT_MS, 10_000);
+  const realSetTimeout = globalThis.setTimeout;
+  const timers = [];
+  let signal = null;
+  globalThis.fetch = (url, options) => { signal = options.signal; return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))); };
+  globalThis.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return realSetTimeout(() => {}, 0); };
+  let pending;
+  try { pending = fresh.getJson('https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json', { fresh: true }); }
+  finally { globalThis.setTimeout = realSetTimeout; }
+  assert.deepEqual(timers.map(t => t.ms), [10_000], 'one timer, of 10 s');
+  assert.ok(signal && !signal.aborted);
+  timers[0].fn(); // 10 s later
+  assert.ok(signal.aborted, 'the request is aborted, not just ignored');
+  await assert.rejects(pending, error => error instanceof fresh.Unavailable && /demorou/.test(error.message));
+});
+
+test('with ?fonte=tse and the TSE down, with no boletim at all: amber "nenhum boletim disponível ainda" warning, retrying every 30 s', async () => {
+  globalThis.location = { search: '?fonte=tse', hash: '#/1turno/presidente' };
+  try {
+    tse.mode = 'down';
+    const data = await loadOffice(1, 'presidente');
+    assert.equal(data.status, 'error', 'an error, never "not published"');
+    assert.equal(tse.requests.filter(u => !u.startsWith('https://')).length, 0, '?fonte=tse does not read the shipped copy');
+    const notice = noBoletimNotice(data);
+    assert.equal(notice.tone, 'warning');
+    assert.match(notice.title, /nenhum boletim disponível ainda/);
+    assert.match(notice.text, /a cada 30 s/);
+    assert.equal(pollDelay(data, 1), 30000);
+    assert.equal(statusInfo(data, { round: 1 }).tone, 'is-stale');
+    // The warning style is amber (the --warn-* tokens), not red.
+    const css = readFileSync(new URL('../src/styles/components.css', import.meta.url), 'utf8');
+    const rule = /\.notice\.is-warning \{([^}]*)\}/.exec(css)[1];
+    assert.match(rule, /var\(--warn-bg\)/);
+    assert.match(rule, /var\(--warn-line\)/);
+    assert.match(css, /\.notice\.is-warning strong \{[^}]*var\(--warn-ink\)/);
+    // The TSE comes back: results, no warning.
+    tse.mode = 'up';
+    const back = await loadOffice(1, 'presidente', data);
+    assert.equal(back.source, 'tse');
+    assert.equal(noBoletimNotice(back), null);
+  } finally { delete globalThis.location; }
+});
+
+test('the open municipality follows the national boletim: asked for again only when the br file changes', async () => {
+  const timers = fakeTimers();
+  const office = presidentFeed(timers);
+  office.subscribe(() => {});
+  await office.inflight;
+  const muniTimers = fakeTimers();
+  const muni = municipalityFeed(2, 'presidente', '2927408', office, { timers: muniTimers, hidden: () => false });
+  const muniUrl = u => u.includes('/ba/ba38490-c0001-e006258-u.json');
+  tse.requests = [];
+  muni.subscribe(() => {});
+  const stopFollowing = followFeed(muni, office, muni.keyOf);
+  await muni.inflight;
+  assert.equal(muni.data.source, 'tse');
+  assert.equal(tse.requests.filter(muniUrl).length, 1, 'first read');
+  assert.equal(muniTimers.pending.size, 0, 'no polling of its own while things go well');
+  const first = muni.data;
+
+  // Same boletim: one request per cycle (only br), the municipality is not asked for again.
+  tse.requests = [];
+  timers.fire();
+  await office.inflight;
+  await muni.inflight;
+  assert.deepEqual(tse.requests.filter(u => u.startsWith('https://')), ['https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json']);
+  assert.equal(muni.data, first);
+
+  // New national boletim: the states and the open municipality are read again.
+  tse.gen = '19:41:00';
+  tse.requests = [];
+  timers.fire();
+  await office.inflight;
+  await muni.inflight;
+  assert.equal(tse.requests.filter(muniUrl).length, 1, 'municipality re-read once');
+  assert.equal(tse.requests.filter(u => u.startsWith('https://')).length, 30, 'br + zz + 27 UFs + the municipality');
+  assert.notEqual(muni.data, first);
+  assert.equal(muni.data.result.generated, '25/10/2026 19:41:00');
+  assert.equal(muni.data.boletim, muni.keyOf(office.data));
+
+  // The municipality file fails on the next boletim: last good result kept, flagged, retried in 30 s.
+  tse.failing.add('ba38490');
+  tse.gen = '19:42:00';
+  timers.fire();
+  await office.inflight;
+  await muni.inflight;
+  assert.ok(muni.data.stale && muni.data.liveError);
+  assert.equal(muni.data.result.generated, '25/10/2026 19:41:00');
+  assert.equal(muniTimers.next().ms, 30000);
+  tse.failing.clear();
+  tse.requests = [];
+  muniTimers.fire();
+  await muni.inflight;
+  assert.equal(tse.requests.filter(muniUrl).length, 1, 'retried even though br did not change');
+  assert.equal(muni.data.stale, undefined);
+  assert.equal(muni.data.result.generated, '25/10/2026 19:42:00');
+  stopFollowing();
+});
+
+test('before the round is published, an open municipality makes no request of its own', async () => {
+  globalThis.fetch = (orig => async url => (String(url).startsWith('https://') ? response(404, null) : orig(url)))(globalThis.fetch);
+  const timers = fakeTimers();
+  const office = presidentFeed(timers);
+  office.subscribe(() => {});
+  await office.inflight;
+  assert.equal(office.data.status, 'not-published');
+  const muni = municipalityFeed(2, 'presidente', '2927408', office, { timers: fakeTimers(), hidden: () => false });
+  tse.requests = [];
+  muni.subscribe(() => {});
+  const stop = followFeed(muni, office, muni.keyOf);
+  await muni.inflight;
+  assert.equal(muni.data.status, 'not-published');
+  assert.equal(tse.requests.filter(u => u.includes('ba38490')).length, 0);
+  stop();
 });
 
 test('static caches expire and keep the old value when a refresh fails', async () => {

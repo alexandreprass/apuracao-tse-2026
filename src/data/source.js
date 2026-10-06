@@ -6,7 +6,7 @@
 //   office and round; after that it is treated as unavailable as well.
 // - On any failure the last good data is kept (whole office or per state) and flagged as stale,
 //   so a failure in the middle of a count never wipes the results off the screen.
-import { OFFICES, ROUNDS, SOURCE_MODE, tseResultUrl } from '../config.js';
+import { OFFICES, pollsClosed, SOURCE_MODE, tseResultUrl } from '../config.js';
 import { normalizeResult, parseTseDate } from './normalize.js';
 import { UFS } from './states.js';
 
@@ -36,8 +36,10 @@ export class Unavailable extends Error {}
 const UNREACHABLE = 'Não foi possível acessar os servidores do TSE.';
 
 /** Every request gives up after this long (a hanging connection must never freeze the polling). */
-export let FETCH_TIMEOUT_MS = 10_000;
-export const setFetchTimeout = ms => { FETCH_TIMEOUT_MS = ms; };
+export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
+export let FETCH_TIMEOUT_MS = DEFAULT_FETCH_TIMEOUT_MS;
+/** For tests: a shorter limit; no argument restores the default. */
+export const setFetchTimeout = (ms = DEFAULT_FETCH_TIMEOUT_MS) => { FETCH_TIMEOUT_MS = ms; };
 
 const inflight = new Map();
 
@@ -111,10 +113,10 @@ export function latestUpdate(data) {
  */
 export function signature(data) {
   if (!data) return '';
-  if (data.status) return `${data.status}|${data.message || ''}`;
+  if (data.status) return `${data.status}|${data.message || ''}|${data.boletim ?? ''}`;
   const rows = data.result ? [['r', data.result]] : [['br', data.br], ['zz', data.zz], ...UFS.map(uf => [uf, data.uf?.[uf]])];
   const places = rows.map(([k, r]) => (r ? `${k}:${r.generated || ''}/${r.updated || ''}/${r.sections?.counted ?? ''}` : `${k}:-`)).join(',');
-  return [data.source, data.stale ? `stale:${data.staleSince || ''}` : '', (data.staleUfs || []).join('.'), data.liveError ? 'live-error' : '', places].join('|');
+  return [data.source, data.boletim ?? '', data.stale ? `stale:${data.staleSince || ''}` : '', (data.staleUfs || []).join('.'), data.liveError ? 'live-error' : '', places].join('|');
 }
 
 /**
@@ -288,14 +290,36 @@ export async function liveMunicipality(round, office, ibge, previous = null) {
   return { result: normalizeResult(raw) };
 }
 
-/** Municipality loader for the polled feeds: live only (there is no shipped per-municipality file). */
-export async function loadMunicipality(round, office, ibge, previous = null, now = new Date()) {
+/**
+ * Boletim of the office that a municipality follows: the national file for president, the state
+ * file otherwise (same generation/totalization times liveOffice compares). null while the office
+ * has no results on screen.
+ */
+export function boletimKey(officeData, uf) {
+  if (!officeData || officeData.status) return null;
+  const row = officeData.br || officeData.uf?.[uf];
+  return row ? `${officeData.source || ''}|${row.generated || ''}|${row.updated || ''}` : null;
+}
+
+/**
+ * Municipality loader for the polled feeds: live only (there is no shipped per-municipality file).
+ * `key` is the boletim of the office (see boletimKey). The municipality file is asked for only when
+ * that boletim changes, or to retry after a failure, so a cycle with the same boletim costs no request
+ * beyond the national file. Without `key` (undefined) it always asks.
+ */
+export async function loadMunicipality(round, office, ibge, previous = null, now = new Date(), key) {
   const lastLive = previous && !previous.status ? previous : null;
+  if (key !== undefined) {
+    // The office has nothing on screen yet (not published, or the TSE never answered): wait for it.
+    if (key === null) return lastLive ? { ...lastLive, checkedAt: now } : { status: 'not-published', message: 'Aguardando o primeiro boletim do TSE.', checkedAt: now, boletim: null };
+    // Same boletim and the last read was good: nothing new to fetch.
+    if (previous && previous.boletim === key && !previous.liveError && previous.status !== 'error') return { ...previous, checkedAt: now };
+  }
   try {
     const fresh = await liveMunicipality(round, office, ibge, lastLive);
-    return { ...fresh, source: 'tse', checkedAt: now };
+    return { ...fresh, source: 'tse', checkedAt: now, boletim: key };
   } catch (error) {
-    if (error instanceof NotPublished) return { status: 'not-published', message: error.message, checkedAt: now };
+    if (error instanceof NotPublished) return { status: 'not-published', message: error.message, checkedAt: now, boletim: key };
     if (lastLive) return { ...lastLive, stale: true, liveError: error.message, staleSince: lastLive.staleSince || now, checkedAt: now };
     return { status: 'error', message: error.message, checkedAt: now };
   }
@@ -319,7 +343,7 @@ export function load2022(path) {
   return cache2022.get(path);
 }
 
-export const roundStarted = round => Date.now() >= new Date(ROUNDS[round].closesAt).getTime();
+export const roundStarted = round => pollsClosed(round);
 
 /** For tests: forget every in-memory cache. */
 export function resetCaches() { codesCache.clear(); indexCache.clear(); packCache.clear(); cache2022.clear(); }

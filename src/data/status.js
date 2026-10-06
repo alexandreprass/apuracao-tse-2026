@@ -53,6 +53,22 @@ export function statusInfo(data, { round = 1, now = new Date() } = {}) {
 }
 
 /**
+ * Warning for the page body when the TSE could not be read and there is no boletim at all to show
+ * (no last good data, no shipped copy), e.g. ?fonte=tse with the TSE down. Amber, like the status
+ * bar (.notice.is-warning uses --warn-bg/--warn-ink/--warn-line); never the red error style.
+ * null in every other case.
+ */
+export function noBoletimNotice(data) {
+  if (data?.status !== 'error') return null;
+  return {
+    tone: 'warning',
+    title: 'TSE indisponível · nenhum boletim disponível ainda',
+    text: `Não foi possível ler os resultados no TSE e não há boletim guardado para mostrar. O site continua tentando a cada ${RETRY_SECONDS} s e mostra os números assim que o TSE responder.`,
+    detail: data.message || '',
+  };
+}
+
+/**
  * Sentence for the screen reader, only when the kind of state changes (never on a routine poll).
  * Returns null when nothing should be announced.
  */

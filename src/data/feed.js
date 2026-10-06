@@ -1,7 +1,8 @@
 // A polled data feed: loads, keeps the last good value, schedules the next check and tells its
 // subscribers what changed. Pure JavaScript (no DOM, no Preact), so the polling rules are tested in Node.
-import { POLL_ELECTION_DAY_MS, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS } from '../config.js';
-import { modeFor, signature } from './source.js';
+import { POLL_LIVE_MS, POLL_WAITING_MS, pollsClosed } from '../config.js';
+import { boletimKey, loadMunicipality, modeFor, signature } from './source.js';
+import { ufOfIbge } from './states.js';
 
 export function isFinished(data) {
   if (!data || data.status) return false;
@@ -15,16 +16,14 @@ export function isFinished(data) {
  * How long to wait before checking again, or null to stop.
  * - TSE unreachable (with or without data on screen) or some state stale: every 30 s, until it answers.
  * - Live count running: every 30 s.
- * - Not published yet: every minute from an hour before the polls close, every 5 minutes before that.
+ * - Not published yet: every 5 minutes until the polls close (17h in Brasília on the round's date,
+ *   ROUNDS[round].closesAt), every 30 s from then on.
  * - Finished count from a good source: stop.
  */
 export function pollDelay(data, round, now = Date.now()) {
   if (!data) return null;
   if (data.status === 'error') return POLL_LIVE_MS;
-  if (data.status === 'not-published') {
-    const start = new Date(ROUNDS[round].closesAt).getTime();
-    return now >= start - 3600_000 && now <= start + 86400_000 ? POLL_ELECTION_DAY_MS : POLL_WAITING_MS;
-  }
+  if (data.status === 'not-published') return pollsClosed(round, now) ? POLL_LIVE_MS : POLL_WAITING_MS;
   if (data.liveError || data.staleUfs?.length) return POLL_LIVE_MS;
   if (isFinished(data)) return null;
   if (data.source === 'tse') return POLL_LIVE_MS;
@@ -115,6 +114,40 @@ export class Feed {
     })();
     return this.inflight;
   }
+}
+
+/**
+ * Makes `child` follow the boletim of `parent`: whenever the parent publishes new data whose
+ * `keyOf` differs from the one the child last loaded (`child.data.boletim`), the child reloads.
+ * Returns the unsubscribe function.
+ */
+export function followFeed(child, parent, keyOf) {
+  let alive = true;
+  const check = () => {
+    if (!alive) return;
+    // A load already under way may have used the previous key: look again when it ends.
+    if (child.inflight) { child.inflight.then(check); return; }
+    const key = keyOf(parent.data);
+    if (key != null && child.data && child.data.boletim !== key) child.run();
+  };
+  const off = parent.subscribe(event => { if (event === 'data') check(); });
+  check();
+  return () => { alive = false; off(); };
+}
+
+/**
+ * One municipality read live from the TSE. It does not poll the TSE on its own: it reloads when the
+ * boletim of its office changes (the office feed polls only the national file), and retries every
+ * 30 s after a failure. Use with followFeed(feed, officeFeed, feed.keyOf).
+ */
+export function municipalityFeed(round, office, ibge, parent, options = {}) {
+  const keyOf = data => boletimKey(data, ufOfIbge(ibge));
+  const feed = new Feed(previous => loadMunicipality(round, office, ibge, previous, new Date(), keyOf(parent.data)), {
+    delay: data => (data && (data.liveError || data.status === 'error') ? POLL_LIVE_MS : null),
+    ...options,
+  });
+  feed.keyOf = keyOf;
+  return feed;
 }
 
 const feeds = new Map();

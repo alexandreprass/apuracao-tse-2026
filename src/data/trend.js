@@ -1,6 +1,7 @@
 // "Evolução da apuração": shares of the leading candidates as the count advances, kept in this
 // browser (localStorage) so the chart does not start empty when the reader comes back.
 import { storage as defaultStorage } from '../lib/storage.js';
+import { parseTseDate } from './normalize.js';
 
 const PREFIX = 'apuracao:evolucao:v1:';
 const INDEX = PREFIX + 'index';
@@ -17,6 +18,8 @@ export function readTrend(key, store = defaultStorage) {
 
 /**
  * Adds a point when the share of sections counted moved; returns the full list.
+ * A newer boletim with the same % apurado replaces the last point instead of adding a duplicate.
+ * An older boletim (fewer sections, or an earlier time) is ignored.
  * Only official TSE results (live or copied) reach this function.
  */
 export function recordTrend(key, result, store = defaultStorage) {
@@ -26,11 +29,19 @@ export function recordTrend(key, result, store = defaultStorage) {
   const last = list[list.length - 1];
   if (last && last.counted === counted && last.time === result.updated) return list;
   if (last && counted < last.counted) return list; // older boletim (e.g. a stale copy): ignore
-  list.push({
+  const point = {
     counted,
     time: result.updated,
     shares: result.candidates.slice(0, 3).map(c => ({ n: String(c.n), name: c.name, party: c.party, pct: c.pct })),
-  });
+  };
+  if (last && last.counted === counted) {
+    // Same % apurado, another boletim time: an earlier one is ignored, a later one replaces the last point.
+    const before = parseTseDate(last.time), now = parseTseDate(result.updated);
+    if (before && now && now < before) return list;
+    list[list.length - 1] = point;
+  } else {
+    list.push(point);
+  }
   while (list.length > MAX_POINTS) list.splice(1, 1); // keep the first point, drop the oldest after it
   store.set(PREFIX + key, list);
   // Keep at most MAX_SERIES places, most recently updated first.
