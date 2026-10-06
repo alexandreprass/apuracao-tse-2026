@@ -65,7 +65,7 @@ function Overview({ route, geo, theme, index, office }) {
     onState=${code => route.go({ uf: code, ibge: null })} title="Cadeiras por estado"/>`;
   const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">Eleitos por partido · Brasil</span></div>
-    <${PartyBars} rows=${tally.parties} total=${tally.seats} unit="cadeiras" limit=${16}/>
+    <${PartyBars} rows=${tally.parties} total=${tally.seats} unit="cadeiras" limit=${16} showPercent=${false}/>
     <p class="muted small">Cor do mapa: partido com mais cadeiras no estado.</p>
   </div>
   <ul class="race-list">${present.map(uf => {
@@ -116,7 +116,7 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
   </div>`;
   const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">Cadeiras por partido · ${stateName(uf)}</span></div>
-    <${PartyBars} rows=${parties} total=${result.seats} unit="cadeiras"/>
+    <${PartyBars} rows=${parties} total=${result.seats} unit="cadeiras" showPercent=${false}/>
     <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
   </div>`;
   const drawers = {
