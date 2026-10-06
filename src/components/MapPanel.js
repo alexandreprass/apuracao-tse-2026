@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { ElectionMap } from '../map/ElectionMap.js';
-import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginColor, marginRamp, MARGIN_STEPS, statusColor } from '../lib/color.js';
+import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginRamp, MARGIN_STEPS, partyFill, STATUS_STEPS, statusColor } from '../lib/color.js';
 import { int, pct, titleCase } from '../lib/format.js';
 import { stateName } from '../data/states.js';
 import { Segmented } from './ui.js';
@@ -37,7 +37,11 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     fill: row => !row || row.empty ? MAP_EMPTY[theme]
       : metric === 'apurado' ? completionColor(row.completion, theme)
       : statusMode ? statusColor(row, theme)
-      : marginColor(row.color, row.margin, theme),
+      : partyFill(row.leaderParty, row.margin, theme).fill,
+    // Label ink comes with the palette step (best of #141821/#ffffff, always ≥ 4.5:1).
+    ink: row => !row || row.empty || metric === 'apurado' ? null
+      : statusMode ? partyFill(row.leaderParty, STATUS_STEPS[row.status] ?? 0, theme).ink
+      : partyFill(row.leaderParty, row.margin, theme).ink,
     label: row => !row || row.empty ? '—' : metric === 'apurado' ? pct(row.completion * 100, 0)
       : statusMode && row.status === 'segundo-turno' ? '2ºT' : pct(row.leaderPct, 0),
     tooltip: row => {
@@ -93,10 +97,10 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     </div>
     <div class="legend">
       ${statusMode ? html`
-          <span class="legend-side legend-key"><i class="swatch" style=${{ background: statusColor({ color: '#2f55d4', status: 'decidido' }, theme) }}></i>cor cheia: eleito no 1º turno
-            <i class="swatch" style=${{ background: statusColor({ color: '#2f55d4', status: 'segundo-turno' }, theme) }}></i>cor clara e “2ºT”: ${statusLabel}, na cor de quem lidera</span>
+          <span class="legend-side legend-key"><i class="swatch" style=${{ background: statusColor({ leaderParty: statusLegend[0]?.party || 'PL', status: 'decidido' }, theme) }}></i>cor cheia: eleito no 1º turno
+            <i class="swatch" style=${{ background: statusColor({ leaderParty: statusLegend[0]?.party || 'PL', status: 'segundo-turno' }, theme) }}></i>cor clara e “2ºT”: ${statusLabel}, na cor de quem lidera</span>
           ${statusLegend.slice(0, 10).map(entry => html`<span class="legend-side" key=${entry.party}>
-            <i class="swatch" style=${{ background: statusColor({ ...entry, status: 'decidido' }, theme) }}></i><b>${entry.party}</b>
+            <i class="swatch" style=${{ background: statusColor({ leaderParty: entry.party, status: 'decidido' }, theme) }}></i><b>${entry.party}</b>
             ${[entry.decided && `${int(entry.decided)} ${entry.decided === 1 ? 'eleito' : 'eleitos'}`, entry.open && `lidera ${int(entry.open)} ${statusLabel === '2º turno' ? 'no 2º turno' : 'em apuração'}`].filter(Boolean).join(' · ')}
           </span>`)}
           ${staleCount > 0 && html`<span class="legend-side"><i class="swatch swatch-stale"></i>boletim atrasado</span>`}`

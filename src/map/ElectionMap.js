@@ -357,7 +357,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         const style = {
           left: state.center[0] * cam.k + cam.x + dx + 'px',
           top: state.center[1] * cam.k + cam.y + dy + 'px',
-          color: floating ? null : inkOn(fill(result)),
+          color: floating ? null : paint.ink?.(result) || inkOn(fill(result)),
         };
         return html`<button key=${state.uf} class=${'state-label' + (floating ? ' is-floating' : '')} style=${style}
           onClick=${() => onState(state.uf)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
@@ -368,7 +368,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
       ${CALLOUTS.map((code, i) => {
         const [left, top] = calloutPosition(i, size), result = stateResults[code], background = fill(result);
         return html`<button key=${code} class="state-callout"
-          style=${{ left: left + 'px', top: top + 'px', background, color: inkOn(background) }}
+          style=${{ left: left + 'px', top: top + 'px', background, color: paint.ink?.(result) || inkOn(background) }}
           onClick=${() => onState(code)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
           onPointerEnter=${labelEnter(code)} onPointerLeave=${() => setHover(null)}>
           <b>${code}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
