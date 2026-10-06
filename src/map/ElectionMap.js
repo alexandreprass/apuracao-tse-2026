@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
-import { percent, leaderShare } from '../lib/format.js';
-import { CANDIDATES, resultColor } from '../data/mocks.js';
+import { MAP_EMPTY } from '../lib/color.js';
 import { Icon } from '../components/Icon.js';
 import { cameraFor } from './geography.js';
 import { MAP_THEMES, inkOn } from './mapTheme.js';
@@ -10,6 +9,9 @@ import { MAP_THEMES, inkOn } from './mapTheme.js';
 const CALLOUTS = ['RN', 'PB', 'PE', 'AL', 'SE', 'ES', 'RJ'];
 const CALLOUT_ROW = 22;
 const LABEL_NUDGE = { DF: [3, -3], GO: [-7, 5] };
+// On small maps these labels collide with their neighbours, so they move slightly apart.
+const NARROW_NUDGE = { DF: [6, -6], GO: [-9, 7], CE: [2, -4], PI: [-4, 6], MA: [-6, 0], TO: [-2, 4] };
+const NARROW_WIDTH = 440;
 const DRAG_THRESHOLD = 5;
 const ZOOM_STEP = 1.55;
 const CAMERA_MS = 520;
@@ -29,19 +31,19 @@ const calloutPosition = (index, size) => [size.width * .882, size.height * .29 +
  * per municipality sized by electorate); `metric` picks the colour (who leads, or how much is counted).
  * `flipped` lists states that just changed hands, outlined until the caller clears them.
  */
-export function ElectionMap({ geo, results, stateResults, uf, municipality, zoneRows, selectedZone, theme, unit, metric, flipped, onState, onMunicipality, onZone }) {
+export function ElectionMap({ geo, results, stateResults, uf, municipality, zoneRows = null, selectedZone = null, theme, unit, metric, flipped, paint, onState, onMunicipality, onZone = () => {} }) {
   const root = useRef(), canvas = useRef(), camera = useRef(), target = useRef(), frame = useRef(), drawRef = useRef();
   const interaction = useRef({}), touches = useRef(new Map());
   const [size, setSize] = useState({ width: 500, height: 500 });
   const [hover, setHover] = useState(null), [view, setView] = useState(null);
   const zones = municipality && geo.zonesFor(municipality.id);
   const colors = MAP_THEMES[theme];
-  const fill = result => resultColor(result, theme, metric);
+  const fill = result => paint.fill(result);
   const bubbles = unit === 'eleitorado';
   const byMunicipality = uf || unit !== 'estados';
   const largestFirst = useMemo(() => [...geo.municipalities].sort((a, b) => b.population - a.population), [geo]);
   const bubbleScale = LARGEST_BUBBLE * (geo.box[2] - geo.box[0]) / Math.sqrt(LARGEST_ELECTORATE);
-  const labelValue = result => percent(metric === 'apurado' ? result.completion : leaderShare(result), 0);
+  const labelValue = result => paint.label(result);
 
   useLayoutEffect(() => {
     const resize = new ResizeObserver(entries => {
@@ -76,7 +78,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.fill(state.fill);
       }
     } else if (bubbles) {
-      ctx.fillStyle = resultColor(null, theme);
+      ctx.fillStyle = MAP_EMPTY[theme];
       for (const state of Object.values(geo.states)) {
         ctx.globalAlpha = uf && state.uf !== uf ? .35 : 1;
         ctx.fill(state.fill);
@@ -91,7 +93,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.globalAlpha = emphasis(m) * .92;
         ctx.fillStyle = fill(result);
         ctx.beginPath();
-        ctx.arc(m.center[0], m.center[1], Math.max(SMALLEST_BUBBLE_PX / k, Math.sqrt(result.electorate) * bubbleScale / zoomDamping), 0, Math.PI * 2);
+        ctx.arc(m.center[0], m.center[1], Math.max(SMALLEST_BUBBLE_PX / k, Math.sqrt(result?.electorate || m.population * .7) * bubbleScale / zoomDamping), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -207,7 +209,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
     return () => cancelAnimationFrame(frame.current);
   }, [size.width, size.height, place]);
 
-  useLayoutEffect(() => { draw(); }, [results, stateResults, zoneRows, selectedZone, hover, theme, unit, metric, flipped]);
+  useLayoutEffect(() => { draw(); }, [results, stateResults, zoneRows, selectedZone, hover, theme, unit, metric, flipped, paint]);
 
   const position = event => {
     const box = canvas.current.getBoundingClientRect();
@@ -299,9 +301,9 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
 
   useEffect(() => {
     const c = canvas.current;
-    // On narrow screens the wheel scrolls the page; ctrl+wheel (trackpad pinch) still zooms.
     const wheel = event => {
-      if (innerWidth < 1000 && !event.ctrlKey) return;
+      // Plain wheel scrolls the page; zoom needs Ctrl/Cmd (trackpad pinch sends ctrlKey) or the buttons.
+      if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       zoom(Math.exp(-event.deltaY * .0015), position(event), false);
     };
@@ -328,9 +330,9 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
       onPointerDown=${pointerDown} onPointerMove=${pointerMove} onPointerUp=${pointerUp}
       onPointerCancel=${pointerCancel} onPointerLeave=${() => setHover(null)}></canvas>
 
-    ${!uf && html`<div class="state-labels" role="group" aria-label="Selecionar um estado">
+    ${!uf && html`<div class=${'state-labels' + (size.width < NARROW_WIDTH ? ' is-narrow' : '')} role="group" aria-label="Selecionar um estado">
       ${Object.values(geo.states).filter(state => !CALLOUTS.includes(state.uf)).map(state => {
-        const [dx, dy] = LABEL_NUDGE[state.uf] || [0, 0];
+        const [dx, dy] = (size.width < NARROW_WIDTH ? NARROW_NUDGE : LABEL_NUDGE)[state.uf] || [0, 0];
         const result = stateResults[state.uf];
         const style = {
           left: state.center[0] * cam.k + cam.x + dx + 'px',
@@ -360,10 +362,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
 
     ${hovered && html`<div class="map-tooltip" style=${{ left: Math.max(10, Math.min(size.width - 200, hover.sx + 12)) + 'px', top: Math.max(10, hover.sy - 62) + 'px' }}>
       <strong>${hovered.name}</strong>
-      ${metric === 'apurado'
-        ? html`<span>${percent(hovered.result.completion)} das seções apuradas</span>`
-        : html`<span><i class=${'swatch tone-' + CANDIDATES[hovered.result.winner].tone}></i>
-            ${CANDIDATES[hovered.result.winner].name} · ${percent(leaderShare(hovered.result))}</span>`}
+      <span>${paint.tooltip(hovered.result)}</span>
     </div>`}
   </div>`;
 }

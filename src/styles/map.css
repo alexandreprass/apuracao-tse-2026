@@ -156,3 +156,7 @@
     padding-inline: 4px;
   }
 }
+
+/* Small maps: tighter labels so neighbouring states (Nordeste, DF/GO) do not overlap. */
+.state-labels.is-narrow .state-label { padding: 1px; font-size: 10px; }
+.state-labels.is-narrow .state-callout { font-size: 10px; height: 17px; }
