@@ -14,7 +14,7 @@ const RAMP_LABELS = ['<5', '5–15', '15–30', '>30'];
  * coloured by who leads and by how much, or by how much has been counted.
  */
 export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf,
-  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false, seatLegend = null }) {
+  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false, seatLegend = null, seatMode = false }) {
   const [metric, setMetric] = useState(initialMetric);
   const touch = useMediaQuery('(pointer: coarse)');
   const verb = touch ? 'Toque' : 'Clique';
@@ -51,6 +51,8 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     dots: row => (statusMode && row?.seats > 1 ? row.elected.map(e => partyFill(e.party, 1, theme).fill) : null),
     tooltip: row => {
       if (!row || row.empty) return emptyLabel;
+      // Deputies (proportional): the state's biggest bench, never a "leader" per município.
+      if (seatMode) return `Maior bancada: ${row.tied.join(', ')} · ${int(row.count)} de ${int(row.seats)} cadeiras${row.filled < row.seats ? ` (${int(row.filled)} eleitos publicados pelo TSE)` : ''}`;
       if (row.inherited) return `${verb} para ver o resultado do município`;
       const stale = row.stale ? ` · boletim das ${row.staleBulletin || '—'} (TSE sem resposta)` : '';
       if (metric === 'apurado') return `${pct(row.completion * 100)} das seções apuradas${stale}`;
@@ -59,7 +61,7 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
       if (showStatus && !uf && row.status === 'decidido') return `Eleito: ${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
       return `${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
     },
-  }), [theme, metric, verb, statusMode, showStatus, uf, emptyLabel, statusLabel]);
+  }), [theme, metric, verb, statusMode, showStatus, uf, emptyLabel, statusLabel, seatMode]);
 
   const legend = useMemo(() => {
     const rows = uf ? [...results.values()] : effectiveUnit === 'estados' ? Object.values(states) : [...results.values()];
@@ -92,7 +94,7 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
   const controls = html`<${Segmented} label="Cor do mapa" value=${metric === 'situacao' && (!showStatus || uf) ? 'lider' : metric} onChange=${setMetric}
     options=${[['lider', 'Quem lidera'], ...(showStatus && !uf ? [['situacao', 'Situação']] : []), ['apurado', '% apurado']]}/>`;
   return html`<section class=${'card map-card' + (compact ? ' is-compact' : '')} aria-label=${`${title}. ${hint}`}>
-    ${compact ? html`<div class="map-controls map-overlay">${controls}</div>`
+    ${seatMode ? null : compact ? html`<div class="map-controls map-overlay">${controls}</div>`
       : html`<header class="card-head">
       <div><h2>${title}</h2><p>${hint}</p></div>
       <div class="map-controls">${controls}</div>
@@ -103,7 +105,12 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
         onState=${onState} onMunicipality=${onMunicipality}/>
     </div>
     <div class="legend">
-      ${statusMode && seatLegend ? html`
+      ${seatMode ? html`
+          <span class="legend-side legend-key">Cor e %: partido com a maior bancada eleita no estado (situação do TSE).</span>
+          ${legend.slice(0, 10).map(entry => html`<span class="legend-side" key=${entry.party}>
+            <i class="swatch" style=${{ background: partyFill(entry.party, 1, theme).fill }}></i><b>${entry.party}</b> ${int(entry.places)} ${entry.places === 1 ? 'estado' : 'estados'}</span>`)}
+          ${Object.values(states).some(r => r?.empty) && html`<span class="legend-side"><i class="swatch" style=${{ background: MAP_EMPTY[theme] }}></i>${emptyLabel}</span>`}`
+      : statusMode && seatLegend ? html`
           <span class="legend-side legend-key">Cor do partido do mais votado; um ponto por eleito, na cor do partido.</span>
           ${seatLegend.map(entry => html`<span class="legend-side" key=${entry.party}>
             <i class="swatch" style=${{ background: partyFill(entry.party, 1, theme).fill }}></i><b>${entry.party}</b> ${int(entry.count)} ${entry.count === 1 ? 'cadeira' : 'cadeiras'}</span>`)}

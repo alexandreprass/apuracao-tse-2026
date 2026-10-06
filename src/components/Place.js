@@ -19,7 +19,7 @@ export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
     <label class="state-picker">
       <span class="sr-only">Escolher estado</span>
       <select value=${uf || ''} onChange=${e => route.go({ uf: e.currentTarget.value || null, ibge: null })}>
-        <option value="">${OFFICES[office].proportional ? 'Escolha um estado' : ufs ? `Brasil (${ufs.length} estados com 2º turno)` : 'Brasil (todos os estados)'}</option>
+        <option value="">${OFFICES[office].proportional ? 'Brasil (resumo de cadeiras)' : ufs ? `Brasil (${ufs.length} estados com 2º turno)` : 'Brasil (todos os estados)'}</option>
         ${runoffPickerUfs(ufs, uf).map(code => html`<option key=${code} value=${code}>${STATES[code][0]} (${code})</option>`)}
         ${allowExterior && html`<option value="ZZ">Exterior</option>`}
       </select>

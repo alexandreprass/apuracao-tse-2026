@@ -3,7 +3,7 @@ import { html } from './lib/html.js';
 import { ENABLED_OFFICES, OFFICES, ROUNDS, TSE_SITE } from './config.js';
 import { runoffCandidates, shareText } from './data/analysis.js';
 import { useMyMunicipality } from './hooks/useMyMunicipality.js';
-import { officeFeed, useFeed, useOffice } from './hooks/useData.js';
+import { officeFeed, useFeed, useOffice, useProportional } from './hooks/useData.js';
 import { useHotkey } from './hooks/useHotkey.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
@@ -12,6 +12,7 @@ import { SearchDialog, searchableCandidates } from './components/SearchDialog.js
 import { Loading, Notice, Section } from './components/ui.js';
 import { placeTitle } from './components/Place.js';
 import { MajoritarianView } from './views/Majoritarian.js';
+import { ProportionalView } from './views/Proportional.js';
 import { useGeography } from './map/useGeography.js';
 
 function About() {
@@ -50,7 +51,11 @@ export function App() {
   const [searching, setSearching] = useState(false);
   const [toast, setToast] = useToast();
   const enabled = ENABLED_OFFICES.includes(route.office);
-  const officeState = useOffice(route.round, enabled ? route.office : 'presidente');
+  // Deputies are proportional: no office-wide file, one state at a time (only when it is opened).
+  const proportional = !!OFFICES[route.office].proportional && route.page === 'resultados';
+  const officeState = useOffice(route.round, enabled && !proportional ? route.office : 'presidente');
+  const stateFeed = useProportional(1, route.office, proportional ? route.uf : null);
+  const pageFeed = proportional ? stateFeed.feed : officeState.feed;
   const needsMap = (route.page === 'resultados' && enabled) || !!searching;
   const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
   const presidents = useOffice(1, 'presidente');
@@ -63,9 +68,9 @@ export function App() {
     : route.page === 'sobre' ? 'Sobre os dados' : 'Comparar resultados';
   const scopeResult = useMemo(() => {
     const d = officeState.data;
-    if (!d || d.status || route.ibge) return null;
+    if (!d || d.status || route.ibge || proportional) return null;
     return route.uf === 'ZZ' ? d.zz : route.uf ? d.uf?.[route.uf] : d.br;
-  }, [officeState.data, route.uf, route.ibge]);
+  }, [officeState.data, route.uf, route.ibge, proportional]);
 
   useEffect(() => {
     document.title = `${title} | Apuração 2026 — resultados do TSE`;
@@ -122,15 +127,16 @@ export function App() {
   return html`<div class="app">
     <a class="skip-link" href="#conteudo">Pular para os resultados</a>
     <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}
-      status=${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>`}/>
+      status=${route.page === 'resultados' && enabled && pageFeed && html`<${StatusBar} feed=${pageFeed} round=${route.round}/>`}/>
     <main id="conteudo" tabindex="-1">
       ${route.page === 'sobre' ? html`<${About}/>`
         : route.page === 'comparar' ? html`<${ComingSoon} what="A comparação entre 1º e 2º turno e com 2022"/>`
         : !enabled ? html`<${ComingSoon} what=${`A página de ${OFFICES[route.office].plural}`}/>`
         : geoError ? html`<${Notice} tone="error" title="O mapa não carregou">${geoError.message}${' '}<button class="button" onClick=${retryGeo}>Tentar de novo</button></${Notice}>`
         : !geo ? html`<${Loading} text="Carregando resultados e mapa…"/>`
+        : proportional ? html`<${ProportionalView} route=${route} geo=${geo} theme=${theme} state=${stateFeed}/>`
         : html`<${MajoritarianView} route=${route} geo=${geo} theme=${theme} office=${officeState} onChooseMunicipality=${() => setSearching('municipio')}/>`}
-      <${SiteFooter} feed=${route.page === 'resultados' && enabled ? officeState.feed : null} round=${route.round}/>
+      <${SiteFooter} feed=${route.page === 'resultados' && enabled ? pageFeed : null} round=${route.round}/>
     </main>
     ${searching && geo && (searching === 'municipio'
       ? html`<${SearchDialog} geo=${geo} candidates=${[]} only="municipality" onPick=${pickMine} onClose=${() => setSearching(false)}/>`

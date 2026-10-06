@@ -176,3 +176,21 @@
 .dash .race-list li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .round-tabs .is-disabled { padding: 4px 10px; color: var(--ink-3); opacity: .6; cursor: not-allowed; white-space: nowrap; }
 .seats-table td > div + div { margin-top: 2px; }
+
+/* Deputies (proportional): candidate lines, search, suplentes by list. */
+.dep-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.dep-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-2); min-height: 36px; padding: 2px 0 2px 10px;
+  border-left: 4px solid var(--party, var(--line)); font-size: var(--text-sm); }
+.dep-row.is-focus { background: var(--sunken); }
+.dep-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dep-name small { color: var(--ink-2); }
+.dep-status { font-size: var(--text-xs, 12px); color: var(--ink-2); white-space: nowrap; }
+.dep-status.is-eleito { color: var(--ink); font-weight: 600; }
+.dep-votes { font-variant-numeric: tabular-nums; text-align: right; min-width: 7ch; }
+.dep-feds { display: flex; flex-wrap: wrap; gap: 2px var(--space-3); margin: 0; }
+.dep-info { margin: 0; }
+.dep-group h3 { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); margin: var(--space-3) 0 var(--space-1); }
+.dep-group h3 small { font-weight: 400; color: var(--ink-2); }
+.dep-table td.num, .dep-table th.num { text-align: right; }
+.dep-table td .swatch { margin-right: 6px; }
+.dep-ufs { display: flex; flex-wrap: wrap; gap: 4px; }
