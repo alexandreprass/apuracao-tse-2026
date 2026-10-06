@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'preact/hooks';
+import { useEffect, useMemo, useReducer, useState } from 'preact/hooks';
 import { Feed, followFeed, getFeed, isFinished, municipalityFeed as createMunicipalityFeed, pollDelay } from '../data/feed.js';
 import { loadMunicipalPack, loadOffice, loadProportional, STATIC_TTL_MS } from '../data/source.js';
 
@@ -30,6 +30,21 @@ export const useOffice = (round, office) => useFeed(office ? officeFeed(round, o
 
 export const useProportional = (round, office, uf) => useFeed(uf ? getFeed(`prop|${round}|${office}|${uf}`,
   () => new Feed(previous => loadProportional(round, office, uf, previous), { delay: data => pollDelay(data, round) })) : null);
+
+/** Reads a proportional candidate's municipal result using the state's proportional bulletin as its version key. */
+export function useProportionalMunicipality(round, office, ibge, proportionalFeed, uf) {
+  const parent = useMemo(() => proportionalFeed ? {
+    get data() {
+      const current = proportionalFeed.data;
+      return current?.result ? { source: current.source, uf: { [uf]: current.result } } : current;
+    },
+    subscribe: listener => proportionalFeed.subscribe(listener),
+  } : null, [proportionalFeed, uf]);
+  const feed = ibge && parent ? getFeed(`mu-prop|${round}|${office}|${ibge}`,
+    () => createMunicipalityFeed(round, office, ibge, parent)) : null;
+  useEffect(() => (feed && parent ? followFeed(feed, parent, feed.keyOf) : undefined), [feed, parent]);
+  return useFeed(feed);
+}
 
 /** One municipality read live from the TSE; it reloads when the office's boletim changes. */
 export const municipalityFeed = (round, office, ibge) => getFeed(`mu|${round}|${office}|${ibge}`,

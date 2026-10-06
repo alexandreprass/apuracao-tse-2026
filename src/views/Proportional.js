@@ -3,15 +3,15 @@ import { html } from '../lib/html.js';
 import { OFFICES } from '../config.js';
 import { int } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
-import { seatsByParty } from '../data/analysis.js';
+import { mapRow, seatsByParty } from '../data/analysis.js';
 import { stateName, UFS } from '../data/states.js';
 import { loadIndex, bundleUrl } from '../data/source.js';
-import { useAsync, useProportional } from '../hooks/useData.js';
+import { useAsync, useProportional, useProportionalMunicipality } from '../hooks/useData.js';
 import { MapPanel } from '../components/MapPanel.js';
 import { Icon } from '../components/Icon.js';
 import { CountStrip, Dashboard, Scoreboard } from '../components/Dashboard.js';
 import { Loading, Metrics, Notice, PartyBars } from '../components/ui.js';
-import { Breadcrumb } from '../components/Place.js';
+import { Breadcrumb, MunicipalityOfficeLinks } from '../components/Place.js';
 import { SiteFooter } from '../components/Header.js';
 
 /** Map row coloured by the party with the most seats in that state (from the shipped index). */
@@ -79,7 +79,7 @@ function Overview({ route, geo, theme, index, office }) {
         const elected = result.candidates.filter(c => c.kind === 'eleito');
         const candidates = elected.length ? elected : result.candidates.slice(0, 5);
         const isExpanded = expandedUf === uf;
-        return html`<section class="uf-block" key=${uf}>
+        return html`<section class="uf-block proportional-candidates" key=${uf}>
           <div class="uf-block-head">
             <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}><img class="state-flag" src=${`flags/${uf.toLowerCase()}.svg`} alt="" aria-hidden="true" loading="lazy"/><span>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</span></a>
             <button class="uf-block-toggle" type="button" aria-expanded=${isExpanded}
@@ -101,9 +101,10 @@ function Overview({ route, geo, theme, index, office }) {
 }
 
 /** One state's proportional race: every elected name in full, then the rest of the list. */
-function StateRace({ route, geo, theme, office, uf, feed }) {
+function StateRace({ route, geo, theme, office, uf, ibge, feed }) {
   const data = feed.data;
   const result = data?.result;
+  const municipality = useProportionalMunicipality(1, office, ibge, feed.feed, uf);
   const [drawer, setDrawer] = useState(null);
   const label = officeLabel(office, uf);
   if (!data) return html`<${Loading} text=${`Carregando ${label.toLowerCase()} de ${stateName(uf)}…`}/>`;
@@ -113,10 +114,27 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
   const parties = Object.entries(states[uf].leaderParty ? result.candidates.filter(c => c.kind === 'eleito').reduce((acc, c) => ({ ...acc, [c.party]: (acc[c.party] || 0) + 1 }), {}) : {})
     .sort((a, b) => b[1] - a[1])
     .map(([party, count]) => ({ party, count, color: partyColor(party) }));
-  const strip = html`<${CountStrip} result=${result} actions=${html`<button class="button is-small" onClick=${() => setDrawer('detalhes')}>Detalhes</button>`}/>`;
-  const map = html`<${MapPanel} compact geo=${geo} theme=${theme} states=${states} uf=${uf}
-    onState=${code => route.go({ uf: code, ibge: null })} title=${`${label} · ${stateName(uf)}`}/>`;
-  const scoreboard = html`<div class="score-card">
+  const cityName = ibge ? geo.byId.get(ibge)?.name : null;
+  const cityResult = municipality.data?.result;
+  const mapMunicipal = (() => {
+    if (!ibge) return null;
+    const rows = new Map((geo.states[uf]?.municipalities || []).map(m => [m.id, { ...states[uf], name: m.name, inherited: true }]));
+    if (cityResult) rows.set(ibge, mapRow(cityResult, cityName || cityResult.name));
+    return rows;
+  })();
+  const shownResult = ibge ? cityResult : result;
+  const strip = html`<${CountStrip} result=${shownResult} actions=${shownResult && html`<button class="button is-small" onClick=${() => setDrawer('detalhes')}>Detalhes</button>`}/>`;
+  const map = html`<${MapPanel} compact geo=${geo} theme=${theme} states=${states} municipalities=${mapMunicipal} uf=${uf} ibge=${ibge}
+    onState=${code => route.go({ uf: code, ibge: null })} onMunicipality=${id => route.go({ uf, ibge: id })}
+    title=${ibge ? `${cityName || 'Município'} · ${stateName(uf)}` : `${label} · ${stateName(uf)}`}/>`;
+  const scoreboard = ibge
+    ? html`<${MunicipalityOfficeLinks} route=${route}/>${cityResult ? html`<div class="score-card proportional-candidates">
+        <div class="score-head"><span class="eyebrow">${cityName || 'MUNICÍPIO'} · ${uf} · 1º TURNO</span></div>
+        <${Scoreboard} result=${cityResult} round=${1} office=${office} uf=${uf} show=${10} focus=${route.focus}/>
+      </div>`
+      : municipality.data?.status ? html`<${Notice} tone="warning" title="Resultado municipal indisponível">${municipality.data.message || 'O TSE ainda não publicou os votos deste município.'}</${Notice}>`
+      : html`<${Loading} text=${`Carregando votos de ${cityName || 'município'}…`}/>`}`
+    : html`<div class="score-card proportional-candidates">
     <div class="score-head"><span class="eyebrow">${stateName(uf).toUpperCase()} · 1º TURNO · ${result.finished ? 'FINALIZADA' : 'EM APURAÇÃO'}</span></div>
     <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
     <${Scoreboard} result=${result} round=${1} office=${office} uf=${uf} show=${Math.max(elected.length, 4)} focus=${route.focus}/>
@@ -127,9 +145,9 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
     <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
   </div>`;
   const drawers = {
-    detalhes: { title: `Participação e votos · ${stateName(uf)}`, content: html`<${Metrics} result=${result}/>` },
+    detalhes: shownResult && { title: `Participação e votos · ${cityName ? `${cityName}, ${uf}` : stateName(uf)}`, content: html`<${Metrics} result=${shownResult}/>` },
   };
-  return html`<${Dashboard} title=${`${label} · ${stateName(uf)} · 1º turno`} strip=${strip}
+  return html`<${Dashboard} title=${`${label} · ${cityName ? `${cityName}, ${uf}` : stateName(uf)} · 1º turno`} strip=${strip}
     crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} infoSidebar scoreboard=${scoreboard} scoreFill
     drawer=${drawer && drawers[drawer]} onCloseDrawer=${() => setDrawer(null)}
     footer=${html`<${SiteFooter} feed=${feed.feed} round=${1}/>`}/>`;
@@ -137,12 +155,12 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
 
 /** Deputies: shipped TSE copy, one file per state. Senate stays on the majoritarian view. */
 export function ProportionalView({ route, geo, theme }) {
-  const { office, uf } = route;
+  const { office, uf, ibge } = route;
   const indexState = useAsync(`index|1|${office}`, () => loadIndex(1));
   const feed = useProportional(1, office, uf);
   if (!uf) {
     if (indexState.loading && !indexState.value) return html`<${Loading} text="Carregando cadeiras…"/>`;
     return html`<${Overview} route=${route} geo=${geo} theme=${theme} index=${indexState.value} office=${office}/>`;
   }
-  return html`<${StateRace} route=${route} geo=${geo} theme=${theme} office=${office} uf=${uf} feed=${feed}/>`;
+  return html`<${StateRace} route=${route} geo=${geo} theme=${theme} office=${office} uf=${uf} ibge=${ibge} feed=${feed}/>`;
 }
