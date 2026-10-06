@@ -330,7 +330,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
       <${StatesWon} data=${data}/>
       <${RegionChips} data=${data} onOpen=${() => setDrawer('regioes')}/>
     </div>`}
-    <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState} staleUfs=${data.staleUfs} showStatus=${!federal} round=${round}/></div>
+    <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState}/></div>
     ${exterior}`;
   const trendTab = trend.length > 1
     ? html`<p class="muted small">Boletins do TSE vistos neste navegador desde ${trend[0].time ? trend[0].time.slice(0, 5) + ' ' + trend[0].time.slice(11, 16) : 'a primeira visita'} (guardados só aqui).</p><${TrendChart} points=${trend}/>`

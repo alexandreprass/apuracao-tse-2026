@@ -262,14 +262,10 @@ main:has(> .dash) > .site-footer { display: none; }
 .dash .race-candidates li { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
 .race-candidate-pair { display: grid; gap: 6px; min-width: 0; }
 .race-candidate-pair > span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; line-height: 1.35; }
-.placement-label { flex: none; color: var(--ink-3); font-size: var(--text-xs); font-weight: 600; }
-.state-candidates { display: grid; justify-items: start; gap: 6px; width: 100%; min-width: 0; }
-.state-candidate { display: flex; align-items: center; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; text-align: left; font-size: 50%; }
-.state-candidate .placement-label { white-space: nowrap; font-size: inherit; }
-.state-candidate .swatch { flex: none; }
-.state-candidate > span { min-width: 0; white-space: nowrap; }
-.state-candidate > span small { color: var(--ink-3); font-size: inherit; }
-.state-candidate-pct { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.state-candidates { display: grid; justify-items: start; gap: 2px; width: 100%; min-width: 0; }
+.state-candidate { display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0; font-size: var(--text-xs); }
+.state-candidate > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.state-candidate > small { flex: none; color: var(--ink-3); font-size: inherit; }
 .state-candidate.is-empty { color: var(--ink-3); }
 /* Keep the state summary table compact inside the map sidebar. */
 .dash #tabela-estados .data-table { font-size: var(--text-xs); }

@@ -2,9 +2,9 @@ import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { int, normalize, pct, pp, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
-import { REGIONS, regionOf, stateName, UFS } from '../data/states.js';
+import { stateName, UFS } from '../data/states.js';
 import { marginPoints, raceStatus } from '../data/analysis.js';
-import { StaleTag, StatusBadge } from './ui.js';
+import { StatusBadge } from './ui.js';
 
 const PAGE = 50;
 
@@ -37,51 +37,30 @@ export function RaceBadge({ result, round = 1 }) {
   return html`<span class=${'badge ' + tone}>${label}</span>`;
 }
 
-export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus = false, round = 1 }) {
-  const [region, setRegion] = useState('');
+export function StatesTable({ data, onState, exterior }) {
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('');
   const { header, apply } = useSort('uf', 'asc');
   const rows = UFS.filter(uf => data.uf?.[uf])
-    .filter(uf => !region || regionOf(uf) === region)
-    .filter(uf => !status || raceStatus(data.uf[uf]) === status)
-    .filter(uf => !query || normalize(stateName(uf) + ' ' + uf + ' ' + data.uf[uf].candidates.slice(0, 2).map(c => c.name).join(' ')).includes(normalize(query)))
+    .filter(uf => !query || normalize(`${uf} ${stateName(uf)} ${data.uf[uf].candidates.slice(0, 2).map(c => `${c.name} ${c.party}`).join(' ')}`).includes(normalize(query)))
     .map(uf => ({ uf, r: data.uf[uf] }));
-  const sorted = apply(rows, {
-    uf: x => stateName(x.uf), lead: x => x.r.candidates[0]?.pct || 0, margin: x => marginPoints(x.r),
-    count: x => x.r.sections.pct, turnout: x => x.r.turnoutPct, electorate: x => x.r.electorate,
-    second: x => x.r.candidates[1]?.pct || 0, status: x => raceStatus(x.r),
-  });
+  const sorted = apply(rows, { uf: x => x.uf });
   const row = ({ uf, r }, label) => html`<tr key=${uf}>
-    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || (uf === 'ZZ' ? 'Exterior' : uf)}</button>
-      ${staleUfs?.includes(uf) && html` <${StaleTag} updated=${r.updated} short/>`}</th>
+    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || uf}</button></th>
     <td><div class="state-candidates">${[0, 1].map((index) => {
       const c = r.candidates[index];
-      return c ? html`<span class="state-candidate" key=${index}><b class="placement-label">${index === 0 ? '1º' : '2º'}</b>
-        <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span>${titleCase(c.name)} <small>${c.party}</small></span><b class="state-candidate-pct">${pct(c.pct || 0)}</b></span>`
-        : html`<span class="state-candidate is-empty" key=${index}><b class="placement-label">${index === 0 ? '1º' : '2º'}</b><span>—</span></span>`;
+      return c ? html`<span class="state-candidate" key=${index} title=${`${titleCase(c.name)} · ${c.party}`}>
+        <span>${titleCase(c.name)}</span><small>${c.party}</small></span>`
+        : html`<span class="state-candidate is-empty" key=${index}>—</span>`;
     })}</div></td>
-    <td class="num">${pp(marginPoints(r))}</td>
-    ${showStatus && html`<td><${RaceBadge} result=${r} round=${round}/></td>`}
-    <td class="num">${pct(r.sections.pct)}</td>
-    <td class="num">${pct(r.turnoutPct)}</td>
-    <td class="num">${int(r.electorate)}</td>
   </tr>`;
   return html`<div class="table-tools">
-      <input type="search" placeholder=${showStatus ? 'Estado ou candidato' : 'Filtrar estado'} aria-label=${showStatus ? 'Filtrar estado ou candidato' : 'Filtrar estado'} value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
-      ${showStatus && html`<select aria-label="Filtrar por situação" value=${status} onChange=${e => setStatus(e.currentTarget.value)}>
-        <option value="">Todas as situações</option><option value="decidido">${round > 1 ? 'Eleito' : 'Decidido no 1º turno'}</option><option value="segundo-turno">Vai ao 2º turno</option>
-      </select>`}
-      <select aria-label="Filtrar por região" value=${region} onChange=${e => setRegion(e.currentTarget.value)}>
-        <option value="">Todas as regiões</option>${REGIONS.map(r => html`<option key=${r} value=${r}>${r}</option>`)}
-      </select>
+      <input type="search" placeholder="Estado ou candidato" aria-label="Filtrar estado ou candidato" value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
     </div>
     <div class="table-wrap"><table class="data-table">
-      <caption class="sr-only">Resultado por estado</caption>
-      <thead><tr>${header('uf', 'UF')}<th scope="col">Candidatos</th>
-        ${header('margin', 'Diferença', 'num')}${showStatus && header('status', 'Situação')}${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
+      <caption class="sr-only">Candidatos por estado</caption>
+      <thead><tr>${header('uf', 'UF')}<th scope="col">Candidatos · nome e partido</th></tr></thead>
       <tbody>${sorted.map(x => row(x))}</tbody>
-      ${exterior && html`<tbody class="exterior-row"><tr><th colspan=${showStatus ? 7 : 6} scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
+      ${exterior && html`<tbody class="exterior-row"><tr><th colspan="2" scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'ZZ')}</tbody>`}
     </table></div>`;
 }
 
