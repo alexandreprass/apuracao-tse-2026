@@ -80,21 +80,18 @@ export function Scoreboard({ result, round, office, uf = null, show = 4, focus =
   const list = result.candidates;
   // A candidate picked in the search is always on screen (opened list if needed).
   const [open, setOpen] = useState(() => list.findIndex(c => c.n === focus) >= show);
-  const [detail, setDetail] = useState(null);
   const visible = open ? list : list.slice(0, show);
   return html`<ol class="score">
     ${visible.map((c, i) => {
-      const extra = candidateExtra(c), expanded = detail === c.n;
+      const extra = candidateExtra(c);
       return html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '')} style=${{ '--party': partyColor(c.party) }} title=${extra || undefined}>
         <${Photo} candidate=${c} office=${office} uf=${uf} size=${32}/>
-        <span class="score-name">${extra
-          ? html`<button class="score-toggle" aria-expanded=${expanded} aria-controls=${'cand-extra-' + c.n} onClick=${() => setDetail(expanded ? null : c.n)}><b>${titleCase(c.name)}</b></button>`
-          : html`<b>${titleCase(c.name)}</b>`} <small>${c.party}</small>
+        <span class="score-name"><b>${titleCase(c.name)}</b> <small>${c.party}${c.n ? ` · ${c.n}` : ''}</small>
           ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}</span>
         <span class="score-pct">${pct(c.pct)}</span>
         <span class="score-votes">${int(c.votes)}</span>
         <span class="score-bar"><i style=${{ width: Math.min(100, c.pct) + '%' }}></i></span>
-        ${extra && html`<span class="score-extra" id=${'cand-extra-' + c.n} hidden=${!expanded}>${c.n} · ${extra}</span>`}
+        ${extra && html`<span class="score-extra">${extra}</span>`}
       </li>`;
     })}
     ${list.length > show && html`<li class="score-more"><button class="link-button" onClick=${() => setOpen(!open)} aria-expanded=${open}>

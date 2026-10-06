@@ -68,7 +68,7 @@ export function photoUrl(round, office, sq, uf) {
 }
 
 /** Offices whose pages are ready. The others show as "em breve" until their stage ships. */
-export const ENABLED_OFFICES = ['presidente', 'governador'];
+export const ENABLED_OFFICES = ['presidente', 'governador', 'senador', 'deputado-federal', 'deputado-estadual'];
 
 /** Offices with results per municipality shipped in public/data/tse/<round>/<office>-municipios/<UF>.json. */
 export const MUNICIPAL_OFFICES = ['presidente', 'governador'];
