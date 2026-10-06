@@ -267,3 +267,7 @@ main:has(> .dash) > .site-footer { display: none; }
 .state-candidate > span small { color: var(--ink-3); font-size: inherit; }
 .state-candidate-pct { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .state-candidate.is-empty { color: var(--ink-3); }
+/* Keep the state summary table compact inside the map sidebar. */
+.dash #tabela-estados .data-table { font-size: var(--text-xs); }
+.dash #tabela-estados .data-table th, .dash #tabela-estados .data-table td { padding: 3px 6px; }
+.dash #tabela-estados .data-table thead th { font-size: 10px; }
