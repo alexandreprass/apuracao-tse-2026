@@ -78,7 +78,7 @@ export function RunoffWaiting({ office, uf, first, data, geo, onChooseMunicipali
   const round = ROUNDS[2];
   return html`<div class="runoff-waiting">
     <${NoBoletim} data=${data}/>
-    ${office === 'presidente' && geo && html`<${MyMunicipality} geo=${geo} office=${office} officeData=${data} onChoose=${onChooseMunicipality}/>`}
+    ${office === 'presidente' && geo && html`<${MyMunicipality} geo=${geo} officeData=${data} onChoose=${onChooseMunicipality}/>`}
     <${Section} heading="h1" title=${`${OFFICES[office].label} · ${uf ? stateName(uf) : 'Brasil'} · 2º turno`}
       subtitle=${`Votação em ${round.date}. A apuração começa quando as urnas fecham, às 17h (horário de Brasília).`}>
       <div class="countdown-box"><span>Faltam</span><${Countdown} target=${round.closesAt}/></div>
@@ -280,7 +280,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
 
   return html`
     ${crumbs}
-    ${round === 2 && office === 'presidente' && !ibge && html`<${MyMunicipality} geo=${geo} office=${office} officeData=${data} onChoose=${onChooseMunicipality}/>`}
+    ${round === 2 && office === 'presidente' && !ibge && html`<${MyMunicipality} geo=${geo} officeData=${data} onChoose=${onChooseMunicipality}/>`}
     ${!result
       ? (ibge && !live.data && live.feed ? html`<${Loading} text="Buscando o resultado do município no TSE…"/>`
         : liveError ? html`<${Notice} tone="warning" title="Não foi possível consultar o TSE agora">${liveError.message} O site continua tentando.</${Notice}>`
