@@ -115,13 +115,13 @@ export function ShareBar({ candidates, max = 4 }) {
 }
 
 /** Horizontal bars of seats or counts per party. */
-export function PartyBars({ rows, total, unit = 'cadeiras', limit = 30 }) {
+export function PartyBars({ rows, total, unit = 'cadeiras', limit = 30, showPercent = true }) {
   const max = Math.max(1, ...rows.map(r => r.count));
   return html`<ol class="party-bars">
     ${rows.slice(0, limit).map(r => html`<li key=${r.party}>
       <span class="party-name">${r.party}</span>
       <span class="party-track"><i style=${{ width: (100 * r.count) / max + '%', background: r.color }}></i></span>
-      <b>${int(r.count)}</b>${total ? html`<small>${pct((100 * r.count) / total, 1)}</small>` : null}
+      <b>${int(r.count)}</b>${total && showPercent ? html`<small>${pct((100 * r.count) / total, 1)}</small>` : null}
     </li>`)}
     ${!rows.length && html`<li class="empty">Nenhum ${unit === 'cadeiras' ? 'eleito' : 'resultado'} ainda.</li>`}
   </ol>`;
