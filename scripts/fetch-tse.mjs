@@ -6,6 +6,7 @@
 //   node scripts/fetch-tse.mjs                       # 1º turno, all offices, plus municipal results for president and governor
 //   node scripts/fetch-tse.mjs --round 2             # 2º turno (president and the governors' runoffs)
 //   node scripts/fetch-tse.mjs --cargos governador   # only some offices (comma separated); the other files are kept
+//   node scripts/fetch-tse.mjs --cargos deputado-federal,deputado-estadual   # deputies: one file per state + seats in index.json
 //   node scripts/fetch-tse.mjs --no-municipios       # skip the municipal files (slowest part: ~5,600 files per office)
 //
 // Nothing here invents data: a file the TSE has not published is simply skipped.
@@ -131,13 +132,21 @@ async function main() {
 
     if (isProportional) {
       const seats = {};
+      // Federations count as one list for the seats (TSE "nfed" of each party); kept in the index so the
+      // Brasil view groups them without downloading any state file.
+      const federations = {};
       for (const [place, row] of found) {
+        for (const f of row.federations || []) {
+          const members = (row.parties || []).filter(p => p.fed === f.number).map(p => p.party);
+          const entry = (federations[f.number] ||= { acronym: f.acronym, name: f.name, parties: [] });
+          for (const sigla of members) if (!entry.parties.includes(sigla)) entry.parties.push(sigla);
+        }
         await write(`${office}/${place.toUpperCase()}.json`, { ...meta(office), ...(incomplete.includes(place.toUpperCase()) ? { incomplete: [place.toUpperCase()] } : {}), result: row });
         const byParty = {};
         for (const c of row.candidates) if (c.kind === 'eleito') byParty[c.party] = (byParty[c.party] || 0) + 1;
         seats[place.toUpperCase()] = { seats: row.seats, elected: byParty, updated: row.updated, finished: row.finished };
       }
-      summary.offices[office] = { states: found.length, seats, ...(incomplete.length ? { incomplete } : {}) };
+      summary.offices[office] = { states: found.length, seats, federations, ...(incomplete.length ? { incomplete } : {}) };
     } else {
       const data = { ...meta(office), ...(incomplete.length ? { incomplete } : {}), uf: {} };
       for (const [place, row] of found) {

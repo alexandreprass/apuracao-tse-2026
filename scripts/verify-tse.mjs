@@ -3,21 +3,24 @@
 //   node scripts/verify-tse.mjs [UF ...]            # presidente: Brasil, exterior e algumas UFs
 //   node scripts/verify-tse.mjs --cargo governador  # governador: as 27 UFs, as 27 capitais e 30 municípios sorteados
 //   node scripts/verify-tse.mjs --cargo senador     # senador: idem; cada UF termina com tantos eleitos quanto as vagas (2 em 2026)
+//   node scripts/verify-tse.mjs --cargo deputado-federal   # deputados (federal ou estadual): as 27 UFs, candidato por candidato
+//     (votos, situação eleito/suplente/tipo, partido, federação, quociente e legenda), eleitos = vagas, e o resumo de cadeiras do index.json
 import { readFile } from 'node:fs/promises';
-import { tseResultUrl } from '../src/config.js';
+import { OFFICES, tseResultUrl } from '../src/config.js';
 import { normalizeResult } from '../src/data/normalize.js';
 import { readPackRow } from '../src/data/analysis.js';
 
 const argv = process.argv.slice(2);
 const office = argv.includes('--cargo') ? argv[argv.indexOf('--cargo') + 1] : 'presidente';
 const ufArgs = argv.filter((a, i) => /^[A-Z]{2}$/.test(a) && argv[i - 1] !== '--cargo');
+const FIELDS = ['electorate', 'turnout', 'abstention', 'totalVotes', 'valid', 'validComputed', 'subJudice', 'blank', 'null', 'finished'];
+if (OFFICES[office]?.proportional) process.exit(await verifyProportional());
 const bundle = JSON.parse(await readFile(new URL(`../public/data/tse/1/${office}.json`, import.meta.url)));
 const codes = JSON.parse(await readFile(new URL('../public/data/tse/municipios.json', import.meta.url)));
 const ALL = Object.keys(bundle.uf).sort();
 const places = office === 'presidente'
   ? ['br', 'zz', ...(ufArgs.length ? ufArgs : ['SP', 'MG', 'BA', 'RS', 'RJ', 'AC'])]
   : (ufArgs.length ? ufArgs : ALL);
-const FIELDS = ['electorate', 'turnout', 'abstention', 'totalVotes', 'valid', 'validComputed', 'subJudice', 'blank', 'null', 'finished'];
 let problems = 0;
 
 const compare = (label, a, b) => {
@@ -103,3 +106,48 @@ if (bundle.br) {
 }
 console.log(problems ? `\n${problems} divergência(s)` : '\nTudo confere com o TSE.');
 process.exit(problems ? 1 : 0);
+
+/** Deputies: one shipped file per state, compared with the live TSE file of that state. Returns the exit code. */
+async function verifyProportional() {
+  const UFS = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'];
+  const index = JSON.parse(await readFile(new URL('../public/data/tse/1/index.json', import.meta.url)));
+  const summary = index.offices?.[office]?.seats || {};
+  let problems = 0, seats = 0, elected = 0, candidates = 0;
+  for (const uf of ufArgs.length ? ufArgs : UFS) {
+    const local = JSON.parse(await readFile(new URL(`../public/data/tse/1/${office}/${uf}.json`, import.meta.url))).result;
+    const live = normalizeResult(await (await fetch(tseResultUrl(1, office, uf.toLowerCase()))).json(), { compact: true });
+    const diffs = ['seats', 'quotient', 'legend', 'updated', 'finished', ...FIELDS].filter(f => local[f] !== live[f]).map(f => `${f}: ${local[f]} ≠ ${live[f]}`);
+    const mine = new Map(local.candidates.map(c => [c.n, c]));
+    for (const c of live.candidates) {
+      const a = mine.get(c.n);
+      if (!a) { diffs.push(`cand ${c.n} ausente da cópia`); continue; }
+      for (const f of ['votes', 'pct', 'status', 'kind', 'elected', 'party', 'name']) if (a[f] !== c[f]) diffs.push(`cand ${c.n} ${f}: ${a[f]} ≠ ${c[f]}`);
+      if ((a.validity || '') !== (c.validity || '')) diffs.push(`candidatura ${c.n}: ${a.validity} ≠ ${c.validity}`);
+    }
+    if (local.candidates.length !== live.candidates.length) diffs.push(`${local.candidates.length} candidatos ≠ ${live.candidates.length}`);
+    // Parties and federations (votes, legend votes, "nfed"): what the seat grouping uses.
+    const key = p => `${p.party}:${p.votes}:${p.legend}:${p.fed || ''}`;
+    if (local.parties.map(key).join() !== live.parties.map(key).join()) diffs.push('partidos/federações divergem');
+    if (JSON.stringify(local.federations) !== JSON.stringify(live.federations)) diffs.push('lista de federações diverge');
+    // Independent checks: "eleito" only from the TSE status text, and a finished count elects exactly as many as the seats.
+    const won = local.candidates.filter(c => c.kind === 'eleito');
+    for (const c of local.candidates) if (c.elected !== (c.kind === 'eleito') || (c.kind === 'eleito') !== /^eleito/i.test(c.status)) diffs.push(`eleito ${c.n} fora da situação do TSE`);
+    if (local.finished && won.length !== local.seats) diffs.push(`${won.length} eleitos para ${local.seats} vagas`);
+    // A count the TSE reopened (finished = false, e.g. a retotalização) may carry vvc ≠ vv + sub judice for a while: a note, not a copy error.
+    const notes = [];
+    if (local.validComputed !== local.valid + local.subJudice) (local.finished ? diffs : notes).push(`vvc ${local.validComputed} ≠ vv ${local.valid} + sub judice ${local.subJudice}`);
+    if (!local.finished) notes.push(`totalização não concluída no TSE (gerado ${local.generated}): ${won.length} eleitos publicados, situação ${local.candidates.filter(c => c.kind === 'pendente').length ? 'pendente' : 'parcial'}`);
+    // index.json (Brasil view): seats and elected per party must be the file's own.
+    const byParty = {};
+    for (const c of won) byParty[c.party] = (byParty[c.party] || 0) + 1;
+    const s = summary[uf];
+    if (!s || s.seats !== local.seats || JSON.stringify(Object.entries(s.elected).sort()) !== JSON.stringify(Object.entries(byParty).sort())) diffs.push('resumo de cadeiras do index.json diverge');
+    problems += diffs.length; seats += local.seats; elected += won.length; candidates += local.candidates.length;
+    const kinds = [...new Set(won.map(c => c.status))].map(st => `${won.filter(c => c.status === st).length} ${st.toLowerCase()}`).join(', ');
+    const suplentes = local.candidates.filter(c => c.kind === 'suplente').length;
+    console.log(`${diffs.length ? '✗' : '✓'} ${office} ${uf} · ${local.seats} vagas · ${won.length} eleitos (${kinds}) · ${suplentes} suplentes · QE ${local.quotient} · legenda ${local.legend}${[...diffs.slice(0, 12), ...notes.map(n => `(aviso) ${n}`)].map(d => '\n   ' + d).join('')}`);
+  }
+  console.log(`  ${candidates} candidatos conferidos · ${elected} eleitos para ${seats} vagas`);
+  console.log(problems ? `\n${problems} divergência(s)` : '\nTudo confere com o TSE.');
+  return problems ? 1 : 0;
+}
