@@ -184,28 +184,33 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
   const map = html`<${MapPanel} compact key=${office + round} geo=${geo} theme=${theme} states=${states} uf=${null} showStatus initialMetric="situacao"
     statusLabel=${round > 1 ? 'em apuração' : '2º turno'} emptyLabel=${round > 1 ? 'Sem 2º turno neste estado' : 'Sem resultados'}
     onState=${onState} title="Mapa por estado"/>`;
-  const scoreboard = html`<div class="score-card">
+  const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">${round > 1 ? 'Eleitos no 2º turno por partido' : 'Eleitos no 1º turno por partido'}</span></div>
-    <${PartyBars} rows=${elected} unit="cadeiras" limit=${8}/>
-    <p class="muted small">Situação de cada candidato conforme o TSE (eleito, 2º turno, não eleito). Clique num estado para ver todos os candidatos.</p>
+    <${PartyBars} rows=${elected} unit="cadeiras" limit=${12}/>
+    <p class="muted small">Clique num estado no mapa para abrir só aquela disputa. Os candidatos já estão à direita.</p>
+  </div>
+  ${runoffs.length > 0 && html`<div class="runoff-list"><p class="won-line"><span class="metric-label">Disputas de 2º turno · ${ROUNDS[2].date}</span>
+      <a href=${`#/2turno/${office}`}>Ver 2º turno →</a></p>
+    <ul class="race-list">${runoffs.map(uf => {
+      const [a, b] = runoffCandidates(data.uf[uf]);
+      return html`<li key=${uf}><a href=${`#/${round}turno/${office}/${uf}`}><b>${uf}</b></a>
+        <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>${a.party} ${pct(a.pct)}</small></span>
+        <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>${b.party} ${pct(b.pct)}</small></span></li>`;
+    })}</ul></div>`}
+  <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState} showStatus round=${round} staleUfs=${data.staleUfs}/></div>`;
+  const scoreboard = html`<div class="score-card">
+    ${UFS.filter(uf => data.uf[uf]?.candidates?.length).map(uf => {
+      const result = data.uf[uf];
+      const picked = result.candidates.filter(c => c.kind === 'eleito' || c.kind === 'segundo-turno');
+      const candidates = picked.length ? picked : result.candidates.slice(0, 3);
+      return html`<section class="uf-block" key=${uf}>
+        <a class="uf-block-title" href=${`#/${round}turno/${office}/${uf}`}>${uf} · ${stateName(uf)}</a>
+        <${Scoreboard} result=${{ ...result, candidates }} round=${round} office=${office} uf=${uf} show=${candidates.length}/>
+      </section>`;
+    })}
   </div>`;
-  const statesTab = html`
-    ${runoffs.length > 0 && html`<div class="runoff-list"><p class="won-line"><span class="metric-label">Disputas de 2º turno · ${ROUNDS[2].date}</span>
-        <a href=${`#/2turno/${office}`}>Ver 2º turno →</a></p>
-      <ul class="race-list">${runoffs.map(uf => {
-        const [a, b] = runoffCandidates(data.uf[uf]);
-        return html`<li key=${uf}><a href=${`#/${round}turno/${office}/${uf}`}><b>${uf}</b></a>
-          <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>${a.party} ${pct(a.pct)}</small></span>
-          <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>${b.party} ${pct(b.pct)}</small></span></li>`;
-      })}</ul></div>`}
-    <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState} showStatus round=${round} staleUfs=${data.staleUfs}/></div>`;
-  const tabs = [
-    { id: 'estados', label: 'Estados', content: statesTab },
-    { id: 'evolucao', label: 'Evolução', content: html`<p class="muted small">A evolução da apuração fica na página de cada estado.</p>` },
-    { id: 'municipio', label: 'Meu município', content: html`<${MyMunicipality} geo=${geo} onChoose=${onChooseMunicipality}/>` },
-  ];
   return html`<${Dashboard} title=${`${label} · Brasil · ${ROUNDS[round].label}`} strip=${strip} crumbs=${crumbs} map=${map}
-    scoreboard=${scoreboard} tabs=${tabs} footer=${html`<${SiteFooter} feed=${feed} round=${round}/>`}/>`;
+    info=${info} scoreboard=${scoreboard} scoreFill footer=${html`<${SiteFooter} feed=${feed} round=${round}/>`}/>`;
 }
 
 /** Runoff not published yet for a state office: the states that have one, one matchup per line. */

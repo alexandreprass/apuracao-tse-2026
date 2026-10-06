@@ -12,7 +12,7 @@ import { ElectedBadge, Photo, StatusBadge } from './ui.js';
  * panel does; on phones it stacks, with the scoreboard as the first tab and the top two stuck under the map.
  * `tabs`: [{ id, label, content }]. `drawer`: { title, content } shown over the panel (full screen on phones).
  */
-export function Dashboard({ title, strip, crumbs, map, scoreboard, extra, leaders, tabs, drawer, onCloseDrawer, footer, scoreLabel = 'Placar', className = '' }) {
+export function Dashboard({ title, strip, crumbs, map, info, scoreboard, extra, leaders, tabs = [], drawer, onCloseDrawer, footer, scoreLabel = 'Placar', className = '', scoreFill = false }) {
   const wide = useMediaQuery('(min-width: 720px)');
   const all = wide || !scoreboard ? tabs : [{ id: 'placar', label: scoreLabel, content: html`${scoreboard}${extra}` }, ...tabs];
   const [active, setActive] = useState(all[0]?.id);
@@ -23,27 +23,29 @@ export function Dashboard({ title, strip, crumbs, map, scoreboard, extra, leader
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, [drawer]);
-  return html`<div class=${'dash' + (className ? ' ' + className : '')}>
+  const showTabs = !scoreFill && all.length > 0;
+  return html`<div class=${'dash' + (className ? ' ' + className : '') + (scoreFill ? ' is-candidates' : '')}>
     <h1 class="sr-only">${title}</h1>
-    <section class="dash-map" aria-label="Mapa e apuração">
+    <section class=${'dash-map' + (info ? ' has-info' : '')} aria-label="Mapa e apuração">
       ${strip && html`<div class="dash-strip">${strip}</div>`}
       <div class="dash-stage">
         ${crumbs && html`<div class="dash-crumbs">${crumbs}</div>`}
         ${map}
       </div>
+      ${info && html`<div class="dash-info">${info}</div>`}
     </section>
     ${!wide && leaders?.length > 0 && html`<div class="dash-leaders" aria-label="Os dois primeiros">${leaders.slice(0, 2).map(c => html`<span key=${c.n}>
       <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span class="dash-leader-name">${titleCase(c.name)}</span><b>${pct(c.pct)}</b></span>`)}</div>`}
     <aside class="dash-panel" aria-label="Resultados">
-      ${wide && scoreboard && html`<div class="dash-score">${scoreboard}${extra}</div>`}
-      ${all.length > 0 && html`<div class="dash-tabs" role="tablist" aria-label="Seções do painel">
+      ${(wide || scoreFill) && scoreboard && html`<div class=${'dash-score' + (scoreFill ? ' is-fill' : '')}>${scoreboard}${extra}${scoreFill ? footer : null}</div>`}
+      ${showTabs && html`<div class="dash-tabs" role="tablist" aria-label="Seções do painel">
         ${all.map(t => html`<button key=${t.id} role="tab" id=${'tab-' + t.id} aria-selected=${t.id === current.id} aria-controls="dash-tabpanel"
           onClick=${() => setActive(t.id)}>${t.label}</button>`)}
       </div>`}
-      <div class="dash-tabpanel" id="dash-tabpanel" role="tabpanel" aria-labelledby=${current ? 'tab-' + current.id : undefined}>
+      ${showTabs && html`<div class="dash-tabpanel" id="dash-tabpanel" role="tabpanel" aria-labelledby=${current ? 'tab-' + current.id : undefined}>
         ${current?.content}
         ${footer}
-      </div>
+      </div>`}
       ${drawer && html`<div class="dash-drawer" role="dialog" aria-modal="false" aria-label=${drawer.title}>
         <header class="dash-drawer-head"><b>${drawer.title}</b>
           <button class="icon-button" onClick=${onCloseDrawer} aria-label="Fechar"><${Icon} name="close" size=${18}/></button></header>
@@ -87,11 +89,12 @@ export function Scoreboard({ result, round, office, uf = null, show = 4, focus =
       const expanded = detail === c.n;
       return html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '') + (expanded ? ' is-open' : '')} style=${{ '--party': partyColor(c.party) }}>
         <${Photo} candidate=${c} office=${office} uf=${uf} size=${32}/>
-        <span class="score-name"><b>${titleCase(c.name)}</b> <small>${c.party}${c.n ? ` · ${c.n}` : ''}</small>
-          ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}
+        <span class="score-name"><span class="score-who"><b>${titleCase(c.name)}</b>
           ${extra && html`<button type="button" class="score-chevron" aria-expanded=${expanded} aria-controls=${'cand-extra-' + c.n}
             aria-label=${expanded ? 'Fechar vice e coligação' : 'Ver vice e coligação'}
             onClick=${() => setDetail(expanded ? null : c.n)}><${Icon} name=${expanded ? 'up' : 'down'} size=${14}/></button>`}</span>
+          ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}</span>
+        <small class="score-party">${c.party}${c.n ? ` · ${c.n}` : ''}</small>
         <span class="score-pct">${pct(c.pct)}</span>
         <span class="score-votes">${int(c.votes)}</span>
         <span class="score-bar"><i style=${{ width: Math.min(100, c.pct) + '%' }}></i></span>

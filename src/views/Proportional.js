@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { OFFICES } from '../config.js';
-import { int, pct, titleCase } from '../lib/format.js';
+import { int } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { seatsByParty } from '../data/analysis.js';
 import { stateName, UFS } from '../data/states.js';
-import { loadIndex } from '../data/source.js';
+import { loadIndex, bundleUrl } from '../data/source.js';
 import { useAsync, useProportional } from '../hooks/useData.js';
 import { MapPanel } from '../components/MapPanel.js';
 import { CountStrip, Dashboard, Scoreboard } from '../components/Dashboard.js';
@@ -40,12 +40,22 @@ function officeLabel(office, uf) {
   return OFFICES[office].label;
 }
 
-/** Brazil overview: seats by party, map coloured by the leading party in each state. */
+/** Brazil overview: party seats on the left, elected candidates on the right. */
 function Overview({ route, geo, theme, index, office }) {
   const seats = index?.offices?.[office]?.seats || {};
   const tally = seatsByParty(seats);
   const states = useMemo(() => Object.fromEntries(UFS.map(uf => [uf, seatMapRow(seats[uf], uf)])), [seats]);
   const present = UFS.filter(uf => seats[uf]);
+  const results = useAsync(`all|1|${office}`, () => Promise.all(UFS.map(async uf => {
+    try {
+      const res = await fetch(bundleUrl(`tse/1/${office}/${uf}.json`));
+      if (!res.ok) return [uf, null];
+      const data = await res.json();
+      return [uf, data.result || null];
+    } catch {
+      return [uf, null];
+    }
+  })).then(rows => Object.fromEntries(rows)));
   const strip = html`<p class="summary-line">
     <span><b>${int(tally.filled)}</b> eleitos</span>
     <span><b>${int(tally.seats)}</b> vagas</span>
@@ -53,20 +63,33 @@ function Overview({ route, geo, theme, index, office }) {
   </p>`;
   const map = html`<${MapPanel} compact key=${office} geo=${geo} theme=${theme} states=${states} uf=${null}
     onState=${code => route.go({ uf: code, ibge: null })} title="Cadeiras por estado"/>`;
-  const scoreboard = html`<div class="score-card">
+  const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">Eleitos por partido · Brasil</span></div>
-    <${PartyBars} rows=${tally.parties} total=${tally.seats} unit="cadeiras" limit=${12}/>
-    <p class="muted small">Cor do mapa: partido com mais cadeiras no estado. Clique num estado para ver cada eleito, com nome completo.</p>
-  </div>`;
-  const list = html`<ul class="race-list">${present.map(uf => {
+    <${PartyBars} rows=${tally.parties} total=${tally.seats} unit="cadeiras" limit=${16}/>
+    <p class="muted small">Cor do mapa: partido com mais cadeiras no estado.</p>
+  </div>
+  <ul class="race-list">${present.map(uf => {
     const top = Object.entries(seats[uf].elected).sort((a, b) => b[1] - a[1])[0];
     return html`<li key=${uf}><a href=${`#/1turno/${office}/${uf}`}><b>${uf}</b></a>
       <span>${stateName(uf)}</span>
       <span><i class="swatch" style=${{ background: partyColor(top[0]) }}></i>${top[0]} <small>${top[1]}/${seats[uf].seats}</small></span></li>`;
   })}</ul>`;
+  const byUf = results.value || {};
+  const scoreboard = !results.value
+    ? html`<${Loading} text="Carregando candidatos…"/>`
+    : html`<div class="score-card">
+      ${UFS.filter(uf => byUf[uf]?.candidates?.length).map(uf => {
+        const result = byUf[uf];
+        const elected = result.candidates.filter(c => c.kind === 'eleito');
+        const candidates = elected.length ? elected : result.candidates.slice(0, 5);
+        return html`<section class="uf-block" key=${uf}>
+          <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</a>
+          <${Scoreboard} result=${{ ...result, candidates }} round=${1} office=${office} uf=${uf} show=${candidates.length}/>
+        </section>`;
+      })}
+    </div>`;
   return html`<${Dashboard} title=${`${OFFICES[office].plural} · Brasil · 1º turno`} strip=${strip}
-    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} scoreboard=${scoreboard}
-    tabs=${[{ id: 'estados', label: 'Estados', content: list }]}
+    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} scoreboard=${scoreboard} scoreFill
     footer=${html`<${SiteFooter} round=${1}/>`}/>`;
 }
 
@@ -91,13 +114,17 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
     <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
     <${Scoreboard} result=${result} round=${1} office=${office} uf=${uf} show=${Math.max(elected.length, 4)} focus=${route.focus}/>
   </div>`;
-  const tabs = [{ id: 'partidos', label: 'Partidos', content: html`<${PartyBars} rows=${parties} total=${result.seats} unit="cadeiras"/>` }];
+  const info = html`<div class="score-card">
+    <div class="score-head"><span class="eyebrow">Cadeiras por partido · ${stateName(uf)}</span></div>
+    <${PartyBars} rows=${parties} total=${result.seats} unit="cadeiras"/>
+    <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
+  </div>`;
   const drawers = {
     detalhes: { title: `Participação e votos · ${stateName(uf)}`, content: html`<${Metrics} result=${result}/>` },
   };
   return html`<${Dashboard} title=${`${label} · ${stateName(uf)} · 1º turno`} strip=${strip}
-    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} scoreboard=${scoreboard}
-    tabs=${tabs} drawer=${drawer && drawers[drawer]} onCloseDrawer=${() => setDrawer(null)}
+    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} scoreboard=${scoreboard} scoreFill
+    drawer=${drawer && drawers[drawer]} onCloseDrawer=${() => setDrawer(null)}
     footer=${html`<${SiteFooter} feed=${feed.feed} round=${1}/>`}/>`;
 }
 
