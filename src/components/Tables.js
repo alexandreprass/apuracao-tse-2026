@@ -3,7 +3,7 @@ import { html } from '../lib/html.js';
 import { int, normalize, pct, pp, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { REGIONS, regionOf, stateName, UFS } from '../data/states.js';
-import { marginPoints } from '../data/analysis.js';
+import { marginPoints, raceStatus } from '../data/analysis.js';
 import { StaleTag, StatusBadge } from './ui.js';
 
 const PAGE = 50;
@@ -28,17 +28,29 @@ function useSort(initial, initialDir = 'desc') {
 const Who = ({ c }) => c ? html`<span class="who"><i class="swatch" style=${{ background: partyColor(c.party) }}></i>${titleCase(c.name)} <small>${c.party}</small></span>` : html`<span class="muted">—</span>`;
 
 /** All 27 states (and abroad, kept apart) with who leads, by how much and how much is counted. */
-export function StatesTable({ data, onState, exterior, staleUfs = [] }) {
+const STATUS_TEXT = { decidido: ['Decidido no 1º turno', 'is-elected'], 'segundo-turno': ['Vai ao 2º turno', 'is-runoff'], 'em-apuracao': ['Em apuração', 'is-pending'] };
+
+/** Race status from the TSE "situação" of the candidates. */
+export function RaceBadge({ result, round = 1 }) {
+  const status = raceStatus(result);
+  const [label, tone] = round > 1 && status === 'decidido' ? ['Eleito', 'is-elected'] : STATUS_TEXT[status];
+  return html`<span class=${'badge ' + tone}>${label}</span>`;
+}
+
+export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus = false, round = 1 }) {
   const [region, setRegion] = useState('');
   const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('');
   const { header, apply } = useSort('uf', 'asc');
   const rows = UFS.filter(uf => data.uf?.[uf])
     .filter(uf => !region || regionOf(uf) === region)
-    .filter(uf => !query || normalize(stateName(uf) + ' ' + uf).includes(normalize(query)))
+    .filter(uf => !status || raceStatus(data.uf[uf]) === status)
+    .filter(uf => !query || normalize(stateName(uf) + ' ' + uf + ' ' + data.uf[uf].candidates.slice(0, 2).map(c => c.name).join(' ')).includes(normalize(query)))
     .map(uf => ({ uf, r: data.uf[uf] }));
   const sorted = apply(rows, {
     uf: x => stateName(x.uf), lead: x => x.r.candidates[0]?.pct || 0, margin: x => marginPoints(x.r),
     count: x => x.r.sections.pct, turnout: x => x.r.turnoutPct, electorate: x => x.r.electorate,
+    second: x => x.r.candidates[1]?.pct || 0, status: x => raceStatus(x.r),
   });
   const row = ({ uf, r }, label) => html`<tr key=${uf}>
     <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || stateName(uf)}</button> <small class="muted">${uf === 'ZZ' ? '' : uf}</small>
@@ -48,12 +60,16 @@ export function StatesTable({ data, onState, exterior, staleUfs = [] }) {
     <td><${Who} c=${r.candidates[1]}/></td>
     <td class="num">${pct(r.candidates[1]?.pct || 0)}</td>
     <td class="num">${pp(marginPoints(r))}</td>
+    ${showStatus && html`<td><${RaceBadge} result=${r} round=${round}/></td>`}
     <td class="num">${pct(r.sections.pct)}</td>
     <td class="num">${pct(r.turnoutPct)}</td>
     <td class="num">${int(r.electorate)}</td>
   </tr>`;
   return html`<div class="table-tools">
-      <input type="search" placeholder="Filtrar estado" aria-label="Filtrar estado" value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
+      <input type="search" placeholder=${showStatus ? 'Filtrar estado ou candidato' : 'Filtrar estado'} aria-label="Filtrar estado" value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
+      ${showStatus && html`<select aria-label="Filtrar por situação" value=${status} onChange=${e => setStatus(e.currentTarget.value)}>
+        <option value="">Todas as situações</option><option value="decidido">${round > 1 ? 'Eleito' : 'Decidido no 1º turno'}</option><option value="segundo-turno">Vai ao 2º turno</option>
+      </select>`}
       <select aria-label="Filtrar por região" value=${region} onChange=${e => setRegion(e.currentTarget.value)}>
         <option value="">Todas as regiões</option>${REGIONS.map(r => html`<option key=${r} value=${r}>${r}</option>`)}
       </select>
@@ -61,9 +77,9 @@ export function StatesTable({ data, onState, exterior, staleUfs = [] }) {
     <div class="table-wrap"><table class="data-table">
       <caption class="sr-only">Resultado por estado</caption>
       <thead><tr>${header('uf', 'Estado')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th><th scope="col" class="num">%</th>
-        ${header('margin', 'Diferença', 'num')}${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
+        ${header('margin', 'Diferença', 'num')}${showStatus && header('status', 'Situação')}${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
       <tbody>${sorted.map(x => row(x))}</tbody>
-      ${exterior && html`<tbody class="exterior-row"><tr><th colspan="9" scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
+      ${exterior && html`<tbody class="exterior-row"><tr><th colspan=${showStatus ? 10 : 9} scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
     </table></div>`;
 }
 

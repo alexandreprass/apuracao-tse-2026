@@ -3,8 +3,8 @@ import { html } from '../lib/html.js';
 import { OFFICES, POLL_LIVE_MS, POLL_WAITING_MS, ROUNDS } from '../config.js';
 import { brasiliaStamp, compact, int, pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
-import { mapRow, regionTotals, runoffCandidates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
-import { stateName } from '../data/states.js';
+import { electedCandidates, mapRow, partyTally, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
+import { stateName, UFS } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
 import { readTrend, recordTrend } from '../data/trend.js';
 import { noBoletimNotice } from '../data/status.js';
@@ -12,9 +12,9 @@ import { useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useDa
 import { useMyMunicipality } from '../hooks/useMyMunicipality.js';
 import { Icon } from '../components/Icon.js';
 import { MyMunicipality } from '../components/MyMunicipality.js';
-import { CandidateCard, Countdown, Loading, Metrics, Notice, Progress, Section, ShareBar, StaleTag } from '../components/ui.js';
+import { CandidateCard, Countdown, Loading, Metrics, Notice, PartyBars, Progress, Section, ShareBar, StaleTag } from '../components/ui.js';
 import { MapPanel } from '../components/MapPanel.js';
-import { MunicipalitiesTable, StatesTable } from '../components/Tables.js';
+import { MunicipalitiesTable, RaceBadge, StatesTable } from '../components/Tables.js';
 import { Breadcrumb, placeTitle } from '../components/Place.js';
 import { TrendChart } from '../components/TrendChart.js';
 
@@ -79,7 +79,7 @@ export function RunoffWaiting({ office, uf, first, data, geo, onChooseMunicipali
   return html`<div class="runoff-waiting">
     <${NoBoletim} data=${data}/>
     ${office === 'presidente' && geo && html`<${MyMunicipality} geo=${geo} office=${office} officeData=${data} onChoose=${onChooseMunicipality}/>`}
-    <${Section} title=${`${OFFICES[office].label} · ${uf ? stateName(uf) : 'Brasil'} · 2º turno`}
+    <${Section} heading="h1" title=${`${OFFICES[office].label} · ${uf ? stateName(uf) : 'Brasil'} · 2º turno`}
       subtitle=${`Votação em ${round.date}. A apuração começa quando as urnas fecham, às 17h (horário de Brasília).`}>
       <div class="countdown-box"><span>Faltam</span><${Countdown} target=${round.closesAt}/></div>
       ${finalists.length
@@ -137,18 +137,114 @@ function Comeback({ result }) {
   </${Section}>`;
 }
 
+/** One line under the hero, straight from the TSE "situação": elected in the 1º turno, or who goes to the runoff. */
+function RaceNote({ result, round, office, uf }) {
+  if (round !== 1 || !result) return null;
+  const finalists = runoffCandidates(result);
+  const elected = electedCandidates(result);
+  const runoffHref = `#/2turno/${office}${uf && !OFFICES[office].federal ? '/' + uf : ''}`;
+  if (finalists.length >= 2 && OFFICES[office].rounds.includes(2)) return html`<p class="hero-note">
+    Nenhum candidato passou de 50% dos votos válidos: <b>${finalists.map(c => titleCase(c.name)).join(' e ')}</b> disputam o 2º turno em ${ROUNDS[2].date}.${' '}
+    <a href=${runoffHref}>Ver 2º turno →</a></p>`;
+  if (elected.length) return html`<p class="hero-note is-done">
+    ${elected.length === 1 ? html`<b>${titleCase(elected[0].name)}</b> (${elected[0].party}) foi eleito no 1º turno`
+      : html`Eleitos: <b>${elected.map(c => `${titleCase(c.name)} (${c.party})`).join(', ')}</b>`}, segundo o TSE.</p>`;
+  return null;
+}
+
+/** Governors (and, later, senators): every state's race at a glance. */
+function StateRacesOverview({ data, round, office, geo, theme, route }) {
+  const states = stateRows(data);
+  const present = UFS.filter(uf => data.uf[uf]);
+  const decided = present.filter(uf => raceStatus(data.uf[uf]) === 'decidido');
+  const runoffs = present.filter(uf => raceStatus(data.uf[uf]) === 'segundo-turno');
+  const elected = partyTally(data, { electedOnly: true });
+  const onState = code => route.go({ uf: code, ibge: null });
+  const label = OFFICES[office].plural;
+  return html`
+    <section class="hero card" aria-labelledby="hero-title">
+      <header class="hero-head">
+        <div>
+          <p class="eyebrow">${ROUNDS[round].label} · ${ROUNDS[round].date}</p>
+          <h1 id="hero-title">${label} · Brasil</h1>
+        </div>
+      </header>
+      <div class="summary-chips">
+        <span class="chip is-elected"><b>${decided.length}</b> ${round > 1 ? 'eleitos no 2º turno' : 'eleitos no 1º turno'}</span>
+        ${round === 1 && html`<span class="chip is-runoff"><b>${runoffs.length}</b> ${runoffs.length === 1 ? 'estado vai' : 'estados vão'} ao 2º turno (${ROUNDS[2].date})</span>`}
+        ${round > 1 && present.length - decided.length > 0 && html`<span class="chip"><b>${present.length - decided.length}</b> em apuração</span>`}
+        <span class="chip"><b>${present.length}</b> ${present.length === 27 ? 'estados' : 'estados com disputa'}</span>
+      </div>
+      <p class="muted small">Situação de cada candidato conforme o TSE (eleito, 2º turno, não eleito). Clique num estado para ver todos os candidatos.</p>
+    </section>
+    <div class="split">
+      <${MapPanel} key=${office + round} geo=${geo} theme=${theme} states=${states} uf=${null} showStatus initialMetric="situacao"
+        statusLabel=${round > 1 ? 'em apuração' : '2º turno'} emptyLabel=${round > 1 ? 'Sem 2º turno neste estado' : 'Sem resultados'}
+        onState=${onState} title="Mapa por estado"/>
+      <div class="stack">
+        <${Section} title=${round > 1 ? 'Eleitos no 2º turno por partido' : 'Eleitos no 1º turno por partido'}>
+          <${PartyBars} rows=${elected} unit="cadeiras"/></${Section}>
+        ${runoffs.length > 0 && html`<${Section} title="Disputas de 2º turno" subtitle=${`Votação em ${ROUNDS[2].date}`}
+            actions=${html`<a class="button" href=${`#/2turno/${office}`}>Ver 2º turno</a>`}>
+          <ul class="race-list">${runoffs.map(uf => {
+            const [a, b] = runoffCandidates(data.uf[uf]);
+            return html`<li key=${uf}><a href=${`#/${round}turno/${office}/${uf}`}><b>${stateName(uf)}</b></a>
+              <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>${a.party} ${pct(a.pct)}</small></span>
+              <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>${b.party} ${pct(b.pct)}</small></span></li>`;
+          })}</ul></${Section}>`}
+      </div>
+    </div>
+    <${Section} title="Todas as disputas" subtitle="Clique no nome do estado para abrir o resultado completo.">
+      <${StatesTable} data=${data} onState=${onState} showStatus round=${round} staleUfs=${data.staleUfs}/></${Section}>`;
+}
+
+/** Runoff not published yet for a state office: the states that have one, with their finalists. */
+function StateRunoffWaiting({ office, first, data }) {
+  if (!first || first.status) return html`<${Loading} text="Carregando as disputas de 2º turno…"/>`;
+  const list = runoffStates(first);
+  return html`<div class="runoff-waiting">
+    <${NoBoletim} data=${data}/>
+    <${Section} heading="h1" title=${`${OFFICES[office].plural} · 2º turno`}
+      subtitle=${`Votação em ${ROUNDS[2].date}, em ${list.length} estados. A apuração começa às 17h (Brasília).`}>
+      <div class="countdown-box"><span>Faltam</span><${Countdown} target=${ROUNDS[2].closesAt}/></div>
+      <div class="runoff-grid">${list.map(uf => html`<article class="runoff-state" key=${uf}>
+        <h3><a href=${`#/2turno/${office}/${uf}`}>${stateName(uf)}</a> <small>${uf}</small></h3>
+        ${runoffCandidates(first.uf[uf]).map(c => html`<${CandidateCard} key=${c.n} placeholder office=${office} uf=${uf}
+          candidate=${{ ...c, status: '2º turno', kind: 'segundo-turno' }} note=${`1º turno: ${pct(c.pct)}`}/>`)}
+      </article>`)}</div>
+      <p class="muted small">Só aparecem os estados em que o TSE indicou 2º turno. Os votos surgem aqui sozinhos quando o TSE publicar o primeiro boletim
+        (o site confere a cada 5 minutos, a cada minuto no dia da eleição e a cada ${Math.round(POLL_LIVE_MS / 1000)} segundos se o TSE não responder).
+        Nos outros ${27 - list.length} estados o governador foi eleito no 1º turno.</p>
+    </${Section}>
+  </div>`;
+}
+
+/** A state without a runoff for this office. */
+function NoRunoff({ office, uf, first }) {
+  const winner = electedCandidates(first?.uf?.[uf])[0];
+  return html`<${Notice} title=${`Sem 2º turno em ${stateName(uf)}`}>
+    ${winner ? html`${titleCase(winner.name)} (${winner.party}) foi eleito no 1º turno com ${pct(winner.pct)} dos votos válidos, segundo o TSE. ` : ''}
+    <a href=${`#/1turno/${office}/${uf}`}>Ver resultado do 1º turno →</a></${Notice}>`;
+}
+
 export function MajoritarianView({ route, geo, theme, office: officeState, onChooseMunicipality }) {
   const { round, office, uf, ibge } = route;
+  const federal = !!OFFICES[office].federal;
   const [myMunicipality, setMyMunicipality] = useMyMunicipality();
   const data = officeState.data;
   const firstRound = useOffice(1, office);
   const packState = useMunicipalPack(round, office, uf);
   const national = data?.br;
-  const municipalRows = useMemo(() => unpackMunicipalities(packState.value, national, geo), [packState.value, national, geo]);
+  // Municipal files list candidates by number; names, parties and photos come from the race's own result.
+  const reference = federal ? national : data?.uf?.[uf];
+  const municipalRows = useMemo(() => unpackMunicipalities(packState.value, reference, geo), [packState.value, reference, geo]);
+  const runoffList = round > 1 && !federal && firstRound.data && !firstRound.data.status ? runoffStates(firstRound.data) : null;
   const packRow = ibge ? municipalRows.get(ibge) : null;
-  // A municipality is read live from the TSE (and polled) whenever the office itself is live or has no shipped row.
-  const live = useLiveMunicipality(round, office, ibge, !!ibge && (!packRow || data?.source === 'tse'));
+  // A municipality is read live from the TSE (and polled) when the office itself is live or has no shipped row,
+  // but never before the round is published (no requests for files that cannot exist yet).
+  const live = useLiveMunicipality(round, office, ibge, !!ibge && !!data && !data.status && (!packRow || data.source === 'tse'));
   const liveResult = live.data?.result;
+  const liveError = live.data?.status === 'error' ? live.data : null;
 
   const states = useMemo(() => stateRows(data), [data]);
   const mapMunicipal = useMemo(() => {
@@ -166,23 +262,28 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
   const scopeStale = !ibge && !!data && !data.status && (data.liveError || data.staleUfs?.includes(scopeCode));
   const muniStale = !!ibge && !!live.data?.liveError;
 
+  const crumbs = html`<${Breadcrumb} route=${route} geo=${geo} allowExterior=${!!data?.zz} ufs=${runoffList}/>`;
+  if (runoffList && uf && !runoffList.includes(uf)) return html`${crumbs}<${NoRunoff} office=${office} uf=${uf} first=${firstRound.data}/>`;
   if (!data) return html`<${Loading}/>`;
   if (data.status) {
-    if (round === 2) return html`<${Breadcrumb} route=${route} geo=${geo}/><${RunoffWaiting} office=${office} uf=${uf === 'ZZ' ? null : uf}
+    if (round === 2 && (federal || uf)) return html`${crumbs}<${RunoffWaiting} office=${office} uf=${uf === 'ZZ' ? null : uf}
       first=${firstRound.data} data=${data} geo=${geo} onChooseMunicipality=${onChooseMunicipality}/>`;
+    if (round === 2) return html`${crumbs}<${StateRunoffWaiting} office=${office} first=${firstRound.data} data=${data}/>`;
     if (data.status === 'error') return html`<${NoBoletim} data=${data}/>`; // the site keeps trying every 30 s
     return html`<${Notice} tone="error" title="Não foi possível carregar os resultados">${data.message} Tente atualizar em instantes.</${Notice}>`;
   }
+  if (!federal && !uf) return html`${crumbs}<${StateRacesOverview} data=${data} round=${round} office=${office} geo=${geo} theme=${theme} route=${route}/>`;
 
   const title = `${OFFICES[office].label} · ${placeTitle(route, geo)}`;
   const onState = code => route.go({ uf: code, ibge: null });
   const onMunicipality = id => route.go({ uf: geo.byId.get(id)?.uf, ibge: id });
 
   return html`
-    <${Breadcrumb} route=${route} geo=${geo} allowExterior=${!!data.zz}/>
+    ${crumbs}
     ${round === 2 && office === 'presidente' && !ibge && html`<${MyMunicipality} geo=${geo} office=${office} officeData=${data} onChoose=${onChooseMunicipality}/>`}
     ${!result
       ? (ibge && !live.data && live.feed ? html`<${Loading} text="Buscando o resultado do município no TSE…"/>`
+        : liveError ? html`<${Notice} tone="warning" title="Não foi possível consultar o TSE agora">${liveError.message} O site continua tentando.</${Notice}>`
         : html`<${Notice} title="Sem resultado para este lugar">O TSE não publicou resultado de ${OFFICES[office].label.toLowerCase()} aqui${round === 2 ? ' no 2º turno' : ''}.</${Notice}>`)
       : html`
         <section class=${'hero card' + (scopeStale || muniStale ? ' is-stale' : '')} aria-labelledby="hero-title">
@@ -192,6 +293,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
               ${scopeStale && html`<${StaleTag} updated=${result.updated} title="O TSE não respondeu na última consulta; mostrando o último boletim recebido"/>`}
               ${muniStale && html`<${StaleTag} updated=${result.updated} text=${`Cópia das ${result.updated?.slice(11, 16) || '—'}: o TSE não respondeu agora`}/>`}
               <h1 id="hero-title">${title}</h1>
+              ${!federal && !ibge && html`<p class="hero-status"><${RaceBadge} result=${result} round=${round}/></p>`}
             </div>
             <div class="hero-count"><strong>${pct(result.sections?.pct || 0)}</strong><span>das seções apuradas</span>
               <${Progress} value=${result.sections?.pct || 0} label="Seções apuradas" tone="is-count"/></div>
@@ -201,11 +303,11 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
             const [a, b] = result.candidates.filter(c => c.votes > 0);
             return a && b && html`<p class="hero-margin">${titleCase(a.name)} ${result.finished ? 'teve' : 'está com'} ${int(a.votes - b.votes)} votos a mais que ${titleCase(b.name)}</p>`;
           })()}
-          ${round === 1 && !uf && office === 'presidente' && runoffCandidates(result).length === 2 && html`<p class="hero-note">
-            Nenhum candidato passou de 50% dos votos válidos: <b>${runoffCandidates(result).map(c => titleCase(c.name)).join(' e ')}</b> disputam o 2º turno em ${ROUNDS[2].date}.${' '}
-            <a href="#/2turno/presidente">Ver 2º turno →</a></p>`}
+          ${!ibge && (federal ? !uf : true) && html`<${RaceNote} result=${result} round=${round} office=${office} uf=${uf}/>`}
           <${CandidateGrid} result=${result} office=${office} uf=${uf}/>
-          <p class="muted small">Percentuais sobre os votos válidos (sem brancos e nulos), como divulga o TSE.
+          <p class="muted small">${result.subJudice
+              ? `Percentuais sobre ${int(result.validComputed)} votos: os ${int(result.valid)} válidos mais ${int(result.subJudice)} anulados sub judice (candidatura com recurso pendente), como calcula o TSE.`
+              : 'Percentuais sobre os votos válidos (sem brancos e nulos), como divulga o TSE.'}
             ${ibge && (liveResult ? ' Resultado do município consultado ao vivo no TSE.' : ` Cópia dos arquivos oficiais do TSE${packTime ? ` de ${packTime}` : ''}.`)}</p>
           ${ibge && html`<p class="mine-toggle">${myMunicipality === ibge
             ? html`<button class="button is-on" aria-pressed="true" onClick=${() => setMyMunicipality(null)}><${Icon} name="star" size=${15}/> Meu município</button>`

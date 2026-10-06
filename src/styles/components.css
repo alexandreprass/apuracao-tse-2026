@@ -56,7 +56,7 @@ a { color: var(--blue-text); }
   padding: var(--space-4); min-width: 0;
 }
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
-.card-head h2 { font-size: var(--text-lg); font-weight: 600; }
+.card-head h2, .card-head h1 { font-size: var(--text-lg); font-weight: 600; }
 .card-head p { color: var(--ink-3); font-size: var(--text-sm); }
 
 .place-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); }
@@ -126,6 +126,7 @@ select, input[type='search'] {
 .badge.is-elected { background: color-mix(in oklch, #2f9e44 18%, transparent); color: light-dark(#1b6e2f, #8ce99a); border-color: color-mix(in oklch, #2f9e44 40%, transparent); }
 .badge.is-runoff { background: color-mix(in oklch, #f08c00 18%, transparent); color: light-dark(#8a4b00, #ffd08a); border-color: color-mix(in oklch, #f08c00 45%, transparent); }
 .badge.is-out { background: var(--sunken); color: var(--ink-3); }
+.badge.is-subjudice { background: color-mix(in oklch, #c2255c 14%, transparent); color: light-dark(#9c1c4a, #ffa8c5); border-color: color-mix(in oklch, #c2255c 45%, transparent); }
 .badge.is-pending { background: var(--sunken); color: var(--ink-2); }
 
 .metrics { display: grid; gap: var(--space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -318,3 +319,21 @@ select, input[type='search'], .search-trigger { border-color: var(--line-input);
   .brand small { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
 }
 @media (max-width: 420px) { .brand small { display: none; } }
+.legend-key { flex-basis: 100%; }
+.legend-key .swatch + .swatch, .legend-key .swatch:nth-of-type(2) { margin-left: var(--space-2); }
+
+.hero-note.is-done { border-left: 3px solid #2f9e44; }
+.summary-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink-2); }
+.chip b { font-size: var(--text-lg); color: var(--ink); font-variant-numeric: tabular-nums; }
+.chip.is-elected { border-color: color-mix(in oklch, #2f9e44 45%, transparent); }
+.chip.is-runoff { border-color: color-mix(in oklch, #f08c00 55%, transparent); }
+.race-list { display: grid; gap: var(--space-3); }
+.race-list li { display: grid; gap: 2px; font-size: var(--text-sm); }
+.race-list li span { display: flex; align-items: center; gap: 6px; }
+.race-list small { color: var(--ink-3); }
+.runoff-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
+.runoff-state { display: grid; gap: var(--space-2); align-content: start; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--sunken); }
+.runoff-state h3 { font-size: var(--text-md); }
+.runoff-state h3 small { color: var(--ink-3); font-weight: 400; }
+.hero-status { margin-top: var(--space-1); }

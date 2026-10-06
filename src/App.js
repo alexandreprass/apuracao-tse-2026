@@ -8,7 +8,7 @@ import { useHotkey } from './hooks/useHotkey.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
 import { OfficeTabs, StatusBar, TopBar } from './components/Header.js';
-import { SearchDialog } from './components/SearchDialog.js';
+import { SearchDialog, searchableCandidates } from './components/SearchDialog.js';
 import { Loading, Notice, Section } from './components/ui.js';
 import { placeTitle } from './components/Place.js';
 import { MajoritarianView } from './views/Majoritarian.js';
@@ -54,6 +54,7 @@ export function App() {
   const needsMap = (route.page === 'resultados' && enabled) || !!searching;
   const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
   const presidents = useOffice(1, 'presidente');
+  const governors = useOffice(1, 'governador');
 
   const title = route.page === 'resultados'
     ? `${OFFICES[route.office].label} · ${placeTitle(route, geo)} · ${ROUNDS[route.round].label}`
@@ -84,13 +85,15 @@ export function App() {
     }
   };
 
-  const candidates = presidents.data?.br?.candidates || [];
+  // Search covers every published race: president nationally and the governor of each state.
+  const candidates = useMemo(() => searchableCandidates(presidents.data, governors.data), [presidents.data, governors.data]);
   const finalists = runoffCandidates(presidents.data?.br).map(c => c.n);
   const pick = entry => {
     if (entry.type === 'candidate') {
       // Stay on the 2º turno when the candidate is in it; otherwise the 1º turno is where they ran.
-      const round = route.round === 2 && finalists.includes(entry.n) ? 2 : 1;
-      route.go({ page: 'resultados', round, office: 'presidente', uf: null, ibge: null, focus: entry.n });
+      const inRunoff = entry.office === 'presidente' ? finalists.includes(entry.n) : entry.kind === 'segundo-turno';
+      const round = route.round === 2 && inRunoff ? 2 : 1;
+      route.go({ page: 'resultados', round, office: entry.office, uf: entry.uf, ibge: null, focus: entry.n });
     }
     else if (entry.type === 'state') route.go({ page: 'resultados', uf: entry.id, ibge: null, office: entry.id === 'ZZ' ? 'presidente' : route.office });
     else route.go({ page: 'resultados', uf: geo?.byId.get(entry.id)?.uf, ibge: entry.id });

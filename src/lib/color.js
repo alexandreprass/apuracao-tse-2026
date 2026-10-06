@@ -72,3 +72,13 @@ export function completionColor(ratio, theme = 'dark') {
   return mix(MAP_BASE[theme], COMPLETION_END[theme], t);
 }
 export const completionRamp = theme => [.3, .48, .64, .82, 1].map(t => mix(MAP_BASE[theme], COMPLETION_END[theme], t));
+
+/**
+ * "Situação" map: every state takes the colour of its leader's party. Races the TSE marked as decided
+ * use the full colour; runoffs (and counts still open) the lightest step, labelled "2ºT" on the map.
+ */
+export const STATUS_STEPS = { decidido: 1, 'segundo-turno': 0, 'em-apuracao': 0 };
+export function statusColor(row, theme = 'dark') {
+  if (!row || row.empty || !row.color) return MAP_EMPTY[theme];
+  return marginColor(row.color, STATUS_STEPS[row.status] ?? 0, theme);
+}

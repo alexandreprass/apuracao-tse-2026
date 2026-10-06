@@ -79,9 +79,10 @@ export function CandidateCard({ candidate, office, uf, rank, big = false, showVo
     <div class="candidate-id">
       <h3>${titleCase(candidate.name)}</h3>
       <p class="candidate-party"><b>${candidate.party}</b> · ${candidate.n}${candidate.vice ? html`<span> · vice: ${titleCase(candidate.vice)}</span>` : null}</p>
-      ${candidate.coalition && big ? html`<p class="candidate-coalition" title=${candidate.composition}>${titleCase(candidate.coalition)}</p>` : null}
+      ${candidate.coalition ? html`<p class="candidate-coalition" title=${candidate.composition ? `Coligação: ${candidate.composition}` : undefined}>${titleCase(candidate.coalition)}</p>` : null}
       <${StatusBadge} candidate=${candidate}/>
-      ${candidate.validity ? html`<span class="badge is-out" title="Situação da candidatura no TSE">${candidate.validity}</span>` : null}
+      ${candidate.validity ? html`<span class=${'badge ' + (/sub judice/i.test(candidate.validity) ? 'is-subjudice' : 'is-out')}
+        title=${/sub judice/i.test(candidate.validity) ? 'Candidatura com recurso pendente na Justiça Eleitoral: os votos ficam separados até a decisão, mas o TSE os inclui no cálculo dos percentuais.' : 'Situação da candidatura no TSE'}>${candidate.validity}</span>` : null}
     </div>
     <div class="candidate-score">
       ${placeholder
@@ -118,10 +119,11 @@ export function PartyBars({ rows, total, unit = 'cadeiras', limit = 30 }) {
   </ol>`;
 }
 
-export function Section({ title, subtitle, children, id, actions, className = '' }) {
+/** A card with a heading (h2 by default; "h1" for pages whose main content is this card). */
+export function Section({ title, subtitle, children, id, actions, className = '', heading = 'h2' }) {
   return html`<section class=${'card ' + className} id=${id} aria-labelledby=${id ? id + '-title' : undefined}>
     ${(title || actions) && html`<header class="card-head">
-      <div>${title && html`<h2 id=${id ? id + '-title' : undefined}>${title}</h2>`}${subtitle && html`<p>${subtitle}</p>`}</div>
+      <div>${title && html`<${heading} id=${id ? id + '-title' : undefined}>${title}</${heading}>`}${subtitle && html`<p>${subtitle}</p>`}</div>
       ${actions}
     </header>`}
     ${children}

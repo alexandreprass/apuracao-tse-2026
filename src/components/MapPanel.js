@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { ElectionMap } from '../map/ElectionMap.js';
-import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginColor, marginRamp, MARGIN_STEPS } from '../lib/color.js';
+import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginColor, marginRamp, MARGIN_STEPS, statusColor } from '../lib/color.js';
 import { int, pct, titleCase } from '../lib/format.js';
 import { stateName } from '../data/states.js';
 import { Segmented } from './ui.js';
@@ -13,8 +13,9 @@ const RAMP_LABELS = ['<5', '5–15', '15–30', '>30'];
  * The interactive map: Brazil by state (or by municipality when municipal results exist),
  * coloured by who leads and by how much, or by how much has been counted.
  */
-export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf }) {
-  const [metric, setMetric] = useState('lider');
+export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf,
+  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados' }) {
+  const [metric, setMetric] = useState(initialMetric);
   const touch = useMediaQuery('(pointer: coarse)');
   const verb = touch ? 'Toque' : 'Clique';
   const municipality = ibge ? geo.byId.get(ibge) : null;
@@ -30,17 +31,25 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     return map;
   }, [municipalities, states, uf, geo]);
 
+  // The "situação" view only makes sense for whole races (states), not for municipalities.
+  const statusMode = metric === 'situacao' && showStatus && !uf;
   const paint = useMemo(() => ({
-    fill: row => !row || row.empty ? MAP_EMPTY[theme] : metric === 'apurado' ? completionColor(row.completion, theme) : marginColor(row.color, row.margin, theme),
-    label: row => !row || row.empty ? '—' : metric === 'apurado' ? pct(row.completion * 100, 0) : pct(row.leaderPct, 0),
+    fill: row => !row || row.empty ? MAP_EMPTY[theme]
+      : metric === 'apurado' ? completionColor(row.completion, theme)
+      : statusMode ? statusColor(row, theme)
+      : marginColor(row.color, row.margin, theme),
+    label: row => !row || row.empty ? '—' : metric === 'apurado' ? pct(row.completion * 100, 0)
+      : statusMode && row.status === 'segundo-turno' ? '2ºT' : pct(row.leaderPct, 0),
     tooltip: row => {
-      if (!row || row.empty) return 'Sem resultados';
+      if (!row || row.empty) return emptyLabel;
       if (row.inherited) return `${verb} para ver o resultado do município`;
       const stale = row.stale ? ` · boletim das ${row.staleBulletin || '—'} (TSE sem resposta)` : '';
       if (metric === 'apurado') return `${pct(row.completion * 100)} das seções apuradas${stale}`;
+      if (showStatus && !uf && row.status === 'segundo-turno') return `${statusLabel}: ${titleCase(row.leaderName)} (${row.leaderParty}) × ${titleCase(row.runnerUpName)} (${row.runnerUpParty})${stale}`;
+      if (showStatus && !uf && row.status === 'decidido') return `Eleito: ${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
       return `${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
     },
-  }), [theme, metric, verb]);
+  }), [theme, metric, verb, statusMode, showStatus, uf, emptyLabel, statusLabel]);
 
   const legend = useMemo(() => {
     const rows = uf ? [...results.values()] : effectiveUnit === 'estados' ? Object.values(states) : [...results.values()];
@@ -56,12 +65,25 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
   }, [results, states, uf, effectiveUnit]);
   const noun = uf || effectiveUnit !== 'estados' ? 'municípios' : 'estados';
   const staleCount = uf ? 0 : Object.values(states).filter(r => r?.stale).length;
+  // "Situação" legend: per leading party, races decided in the 1º turno and runoffs it leads.
+  const statusLegend = useMemo(() => {
+    if (!showStatus) return [];
+    const tally = new Map();
+    for (const row of Object.values(states)) {
+      if (!row || row.empty) continue;
+      const entry = tally.get(row.leaderParty) || { party: row.leaderParty, color: row.color, decided: 0, open: 0 };
+      if (row.status === 'decidido') entry.decided++; else entry.open++;
+      tally.set(row.leaderParty, entry);
+    }
+    return [...tally.values()].sort((a, b) => b.decided - a.decided || b.open - a.open);
+  }, [states, showStatus]);
 
   return html`<section class="card map-card" aria-label="Mapa interativo">
     <header class="card-head">
       <div><h2>${title}</h2><p>${uf ? (municipality ? `${municipality.name} · ${stateName(uf)}` : `${verb} em um município para ver o resultado dele.`) : `${verb} em um estado para abrir os resultados dele.`}</p></div>
       <div class="map-controls">
-        <${Segmented} label="Cor do mapa" value=${metric} onChange=${setMetric} options=${[['lider', 'Quem lidera'], ['apurado', '% apurado']]}/>
+        <${Segmented} label="Cor do mapa" value=${metric === 'situacao' && (!showStatus || uf) ? 'lider' : metric} onChange=${setMetric}
+          options=${[['lider', 'Quem lidera'], ...(showStatus && !uf ? [['situacao', 'Situação']] : []), ['apurado', '% apurado']]}/>
       </div>
     </header>
     <div class="map-area">
@@ -70,7 +92,15 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
         onState=${onState} onMunicipality=${onMunicipality}/>
     </div>
     <div class="legend">
-      ${metric === 'apurado'
+      ${statusMode ? html`
+          <span class="legend-side legend-key"><i class="swatch" style=${{ background: statusColor({ color: '#2f55d4', status: 'decidido' }, theme) }}></i>cor cheia: eleito no 1º turno
+            <i class="swatch" style=${{ background: statusColor({ color: '#2f55d4', status: 'segundo-turno' }, theme) }}></i>cor clara e “2ºT”: ${statusLabel}, na cor de quem lidera</span>
+          ${statusLegend.slice(0, 10).map(entry => html`<span class="legend-side" key=${entry.party}>
+            <i class="swatch" style=${{ background: statusColor({ ...entry, status: 'decidido' }, theme) }}></i><b>${entry.party}</b>
+            ${[entry.decided && `${int(entry.decided)} ${entry.decided === 1 ? 'eleito' : 'eleitos'}`, entry.open && `lidera ${int(entry.open)} ${statusLabel === '2º turno' ? 'no 2º turno' : 'em apuração'}`].filter(Boolean).join(' · ')}
+          </span>`)}
+          ${staleCount > 0 && html`<span class="legend-side"><i class="swatch swatch-stale"></i>boletim atrasado</span>`}`
+      : metric === 'apurado'
         ? html`<span class="legend-scale">${completionRamp(theme).map(c => html`<i key=${c} style=${{ background: c }}></i>`)} seções apuradas: até ${COMPLETION_STEPS.map(s => pct(s * 100, 0)).join(' · ')} · mais</span>`
         : html`${legend.slice(0, 8).map(entry => html`<span class="legend-side" key=${entry.party}>
             <i class="swatch" style=${{ background: entry.color }}></i><b>${entry.label}</b> · ${int(entry.places)} ${noun}
