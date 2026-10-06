@@ -96,6 +96,6 @@ Preact + htm (sem etapa de compilação de templates), CSS puro e Canvas 2D, emp
 - Resultados e fotos: [Tribunal Superior Eleitoral](https://resultados.tse.jus.br). Site independente, sem vínculo com o TSE;
   em caso de divergência, vale o resultado publicado pelo TSE.
 - Malha municipal: [IBGE](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais.html), simplificada
-  em TopoJSON (`public/data/brasil.topo.json`, herdado do projeto original, que a obteve de seuimposto.com).
+  em TopoJSON (`geo/brasil.topo.json`, dividida no build por `scripts/geo-split.mjs` em estados + um arquivo por UF; herdado do projeto original, que a obteve de seuimposto.com).
 - Base do mapa interativo: projeto [open-apuracao-brazil](https://github.com/bpinheiroms/open-apuracao-brazil) (MIT).
 - Fonte: [Geist](https://vercel.com/font), SIL Open Font License.

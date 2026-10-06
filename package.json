@@ -11,8 +11,8 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "dev": "node scripts/geo-split.mjs && vite --host 127.0.0.1",
+    "build": "node scripts/geo-split.mjs && node scripts/manifest.mjs && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8080",
     "test": "node --test tests/*.test.js",
     "dados": "node scripts/fetch-tse.mjs",

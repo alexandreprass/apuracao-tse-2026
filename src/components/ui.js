@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { compact, initials, int, pct, titleCase } from '../lib/format.js';
-import { partyColor } from '../lib/color.js';
+import { partyBadge, partyColor } from '../lib/color.js';
 import { photoUrl } from '../config.js';
 
 const LOCAL_PHOTOS = { '280002551544': 'images/flavio.webp', '280002542548': 'images/lula.webp' };
@@ -34,6 +34,12 @@ export function StatusBadge({ candidate }) {
   const [label, tone] = STATUS[candidate.kind] || STATUS.outro;
   const text = candidate.kind === 'eleito' && /qp|média/i.test(candidate.status) ? candidate.status : (label || candidate.status);
   return html`<span class=${'badge ' + tone}>${text}</span>`;
+}
+
+/** "Eleito no Nº turno" in the party colour, with the palette's ink for that colour (from the TSE status only). */
+export function ElectedBadge({ candidate, round }) {
+  const { fill, ink } = partyBadge(candidate.party);
+  return html`<span class="badge is-party-elected" style=${{ background: fill, color: ink, borderColor: fill }}>Eleito no ${round}º turno</span>`;
 }
 
 export function Progress({ value, label, tone = '' }) {
@@ -71,7 +77,7 @@ export function Metrics({ result, compactMode = false }) {
 }
 
 /** One candidate: portrait, name, number and party, votes, share and status. */
-export function CandidateCard({ candidate, office, uf, rank, big = false, showVotes = true, placeholder = false, note }) {
+export function CandidateCard({ candidate, office, uf, rank, big = false, showVotes = true, placeholder = false, note, round = null }) {
   const color = partyColor(candidate.party);
   return html`<article class=${'candidate' + (big ? ' is-big' : '') + (placeholder ? ' is-placeholder' : '')}
       id=${'cand-' + candidate.n} style=${{ '--party': color }}>
@@ -79,9 +85,12 @@ export function CandidateCard({ candidate, office, uf, rank, big = false, showVo
     <div class="candidate-id">
       <h3>${titleCase(candidate.name)}</h3>
       <p class="candidate-party"><b>${candidate.party}</b> · ${candidate.n}${candidate.vice ? html`<span> · vice: ${titleCase(candidate.vice)}</span>` : null}</p>
-      ${candidate.coalition && big ? html`<p class="candidate-coalition" title=${candidate.composition}>${titleCase(candidate.coalition)}</p>` : null}
-      <${StatusBadge} candidate=${candidate}/>
-      ${candidate.validity ? html`<span class="badge is-out" title="Situação da candidatura no TSE">${candidate.validity}</span>` : null}
+      ${candidate.coalition ? html`<p class="candidate-coalition" title=${candidate.composition ? `Coligação: ${candidate.composition}` : undefined}>${titleCase(candidate.coalition)}</p>` : null}
+      ${round && candidate.kind === 'eleito' && !placeholder
+        ? html`<${ElectedBadge} candidate=${candidate} round=${round}/>`
+        : html`<${StatusBadge} candidate=${candidate}/>`}
+      ${candidate.validity ? html`<span class=${'badge ' + (/sub judice/i.test(candidate.validity) ? 'is-subjudice' : 'is-out')}
+        title=${/sub judice/i.test(candidate.validity) ? 'Candidatura com recurso pendente na Justiça Eleitoral: os votos ficam separados até a decisão, mas o TSE os inclui no cálculo dos percentuais.' : 'Situação da candidatura no TSE'}>${candidate.validity}</span>` : null}
     </div>
     <div class="candidate-score">
       ${placeholder
@@ -118,10 +127,11 @@ export function PartyBars({ rows, total, unit = 'cadeiras', limit = 30 }) {
   </ol>`;
 }
 
-export function Section({ title, subtitle, children, id, actions, className = '' }) {
+/** A card with a heading (h2 by default; "h1" for pages whose main content is this card). */
+export function Section({ title, subtitle, children, id, actions, className = '', heading = 'h2' }) {
   return html`<section class=${'card ' + className} id=${id} aria-labelledby=${id ? id + '-title' : undefined}>
     ${(title || actions) && html`<header class="card-head">
-      <div>${title && html`<h2 id=${id ? id + '-title' : undefined}>${title}</h2>`}${subtitle && html`<p>${subtitle}</p>`}</div>
+      <div>${title && html`<${heading} id=${id ? id + '-title' : undefined}>${title}</${heading}>`}${subtitle && html`<p>${subtitle}</p>`}</div>
       ${actions}
     </header>`}
     ${children}
@@ -138,9 +148,10 @@ export function Loading({ text = 'Carregando resultados…' }) {
   return html`<div class="loading" role="status"><span class="spinner" aria-hidden="true"></span>${text}</div>`;
 }
 
-export function Notice({ tone = 'info', title, children }) {
+export function Notice({ tone = 'info', title, children, heading = null }) {
+  const Title = heading || 'strong';
   return html`<div class=${'notice is-' + tone} role=${tone === 'error' ? 'alert' : 'note'}>
-    ${title && html`<strong>${title}</strong>`}<div>${children}</div>
+    ${title && html`<${Title} class="notice-title">${title}</${Title}>`}<div>${children}</div>
   </div>`;
 }
 
@@ -153,7 +164,7 @@ export function Countdown({ target }) {
   if (ms <= 0) return html`<span class="countdown">Urnas fechadas — aguardando os primeiros boletins do TSE</span>`;
   const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24, m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
   // Seconds only distract days ahead: they appear in the last hour.
-  const parts = ms > 3600_000 ? [[d, 'dias'], [h, 'h'], [m, 'min']] : [[m, 'min'], [s, 's']];
+  const parts = ms > 3600_000 ? [[d, 'd'], [h, 'h'], [m, 'min']] : [[m, 'min'], [s, 's']];
   return html`<span class="countdown" role="timer" aria-label=${`Faltam ${d} dias, ${h} horas e ${m} minutos`}>
     ${parts.map(([v, u]) => html`<span key=${u}><b>${String(v).padStart(2, '0')}</b>${u}</span>`)}
   </span>`;

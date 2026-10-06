@@ -13,9 +13,10 @@ export function parseHash(hash) {
   let params;
   try { params = new URLSearchParams(query); } catch { params = new URLSearchParams(); }
   if (PAGES.includes(parts[0])) return { page: parts[0], round: 1, office: 'presidente', uf: null, ibge: null, focus: params.get('c') };
-  const round = parts[0] === '2turno' ? 2 : 1;
-  let office = OFFICES[parts[1]] ? parts[1] : 'presidente';
-  if (!OFFICES[office].rounds.includes(round)) office = 'presidente';
+  let round = parts[0] === '2turno' ? 2 : 1;
+  const office = OFFICES[parts[1]] ? parts[1] : 'presidente';
+  // An office without this round (Senado and deputies have no 2º turno) stays on its own page, in the 1º turno.
+  if (!OFFICES[office].rounds.includes(round)) round = 1;
   const code = (parts[2] || '').toUpperCase();
   let uf = (STATES[code] || (code === 'ZZ' && OFFICES[office].federal)) ? code : null;
   let ibge = uf && uf !== 'ZZ' && /^\d{7}$/.test(parts[3] || '') ? parts[3] : null;
@@ -39,12 +40,14 @@ export function toHash({ page = 'resultados', round = 1, office = 'presidente', 
  */
 export function canonicalHash(hash) {
   const route = parseHash(hash);
-  if (route.page !== 'resultados' || !route.ibge) return null;
+  if (route.page !== 'resultados') return null;
   const [path, ...query] = String(hash || '').replace(/^#\/?/, '').split('?');
   const parts = path.split('/').filter(Boolean);
-  if ((parts[2] || '').toUpperCase() === route.uf) return null;
-  parts[2] = route.uf;
-  return `#/${parts.join('/')}${query.length ? `?${query.join('?')}` : ''}`;
+  let changed = false;
+  // #/2turno/senador → #/1turno/senador: the office has no 2º turno.
+  if (parts[0] === '2turno' && route.round === 1) { parts[0] = '1turno'; changed = true; }
+  if (route.ibge && (parts[2] || '').toUpperCase() !== route.uf) { parts[2] = route.uf; changed = true; }
+  return changed ? `#/${parts.join('/')}${query.length ? `?${query.join('?')}` : ''}` : null;
 }
 
 /** Rewrites a wrong state in the address in place (replaceState: no extra history entry, no hashchange). */
@@ -66,7 +69,7 @@ export function useRoute() {
   const actions = useMemo(() => ({
     go(changes) {
       const next = { ...parseHash(location.hash), focus: null, ...changes };
-      if (!OFFICES[next.office].rounds.includes(next.round)) next.office = 'presidente';
+      if (!OFFICES[next.office].rounds.includes(next.round)) next.round = 1;
       const hash = toHash(next);
       if (hash !== location.hash) location.hash = hash;
       else setRoute(parseHash(hash));

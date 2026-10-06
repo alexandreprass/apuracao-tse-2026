@@ -3,13 +3,13 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createGeography, cameraFor } from '../src/map/geography.js';
 import { IBGE_PREFIX, ufOfIbge } from '../src/data/states.js';
-import { inkOn } from '../src/map/mapTheme.js';
+import { inkOn, MAP_THEMES } from '../src/map/mapTheme.js';
 import { completionColor, marginColor, mix, MAP_BASE, partyColor } from '../src/lib/color.js';
 
 // Node has no Canvas. Geometry tests only collect bounds and membership;
 // drawing and pointer selection are checked in the browser.
 globalThis.Path2D = class { moveTo() {} lineTo() {} closePath() {} addPath() {} };
-const atlas = JSON.parse(readFileSync(new URL('../public/data/brasil.topo.json', import.meta.url), 'utf8'));
+const atlas = JSON.parse(readFileSync(new URL('../geo/brasil.topo.json', import.meta.url), 'utf8'));
 const geo = createGeography(atlas, { m: {} });
 
 test('the atlas has 5,571 municipalities in 27 states', () => {
@@ -70,6 +70,12 @@ function contrast(a, b) {
   return (x + .05) / (y + .05);
 }
 
+/** The state outline (rgba) composited over a fill. */
+function outlineOver(hex, theme) {
+  const [r, g, b, a] = MAP_THEMES[theme].stateOutline.match(/[\d.]+/g).map(Number);
+  return '#' + [r, g, b].map((v, i) => Math.round(a * v + (1 - a) * parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16)).toString(16).padStart(2, '0')).join('');
+}
+
 test('every map colour step stands out from the page background in both themes', () => {
   const page = { dark: '#101216', light: '#f6f7f9' };
   for (const theme of ['dark', 'light']) {
@@ -77,7 +83,11 @@ test('every map colour step stands out from the page background in both themes',
       for (const margin of [0, .06, .2, .5]) {
         const color = marginColor(partyColor(party), margin, theme);
         assert.match(color, /^#[0-9a-f]{6}$/);
-        assert.ok(contrast(color, page[theme]) >= 1.6, `${party} ${margin} ${theme}: ${contrast(color, page[theme]).toFixed(2)}`);
+        // Central palette rule (design): the strongest step reaches 3:1 on the page; lighter steps are
+        // delimited by the page or by the state outline. Measured minimum today: 2.93:1 (DC, light, step 2),
+        // reported to design as just under the 3:1 of WCAG 1.4.11; this guards against regressions.
+        if (margin >= .3) assert.ok(contrast(color, page[theme]) >= 3, `${party} ${margin} ${theme}: ${contrast(color, page[theme]).toFixed(2)}`);
+        else assert.ok(Math.max(contrast(color, page[theme]), contrast(outlineOver(color, theme), color)) >= 2.9, `${party} ${margin} ${theme}: contorno`);
       }
     }
     for (const ratio of [0, .3, .6, .9, 1]) assert.ok(contrast(completionColor(ratio, theme), page[theme]) >= 1.3);

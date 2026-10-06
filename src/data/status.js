@@ -23,7 +23,7 @@ export function statusInfo(data, { round = 1, now = new Date() } = {}) {
     return { kind: 'waiting', tone: 'is-waiting', state: `Aguardando apuração do ${ROUNDS[round].label}`, source: 'TSE ao vivo · aguardando o 1º boletim' };
   }
   if (data.status === 'error') {
-    return { kind: 'error', tone: 'is-stale', state: 'TSE indisponível · ainda sem boletim para mostrar',
+    return { kind: 'error', tone: 'is-stale', state: 'TSE indisponível', // the warning in the page says the rest
       retry: `Tentando de novo a cada ${RETRY_SECONDS} s`, detail: data.message };
   }
   const boletim = boletimTime(data, now) || '—';
@@ -64,7 +64,6 @@ export function noBoletimNotice(data) {
     tone: 'warning',
     title: 'TSE indisponível · nenhum boletim disponível ainda',
     text: `Não foi possível ler os resultados no TSE e não há boletim guardado para mostrar. O site continua tentando a cada ${RETRY_SECONDS} s e mostra os números assim que o TSE responder.`,
-    detail: data.message || '',
   };
 }
 
@@ -80,7 +79,22 @@ export function announcement(previous, info) {
   if ((previous.kind === 'stale' || previous.kind === 'error' || previous.kind === 'partial') && (info.kind === 'live' || info.kind === 'done')) {
     return `Conexão com o TSE restabelecida. Boletim das ${info.boletim}.`;
   }
+  if ((previous.kind === 'stale' || previous.kind === 'error') && info.kind === 'waiting') {
+    return 'Conexão com o TSE restabelecida. O TSE ainda não publicou o primeiro boletim.';
+  }
   if (info.kind === 'done' && previous.kind === 'live') return 'Totalização finalizada pelo TSE.';
   if (info.kind === 'live' && previous.kind === 'waiting') return 'O TSE publicou o primeiro boletim.';
   return null;
+}
+
+/**
+ * What the aria-live region holds after a change from `previous` to `info`: the new sentence, or empty when
+ * the state changed with nothing to say (so an old "TSE indisponível" never lingers after recovery);
+ * unchanged on routine polls.
+ */
+export function liveRegionText(previous, info, current = '') {
+  const text = announcement(previous, info);
+  if (text) return text;
+  if (previous && info.kind !== 'loading' && previous.kind !== info.kind) return '';
+  return current;
 }

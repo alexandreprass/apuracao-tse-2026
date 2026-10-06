@@ -7,15 +7,15 @@ import { useOffice } from './hooks/useData.js';
 import { useHotkey } from './hooks/useHotkey.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
-import { OfficeTabs, StatusBar, TopBar } from './components/Header.js';
-import { SearchDialog } from './components/SearchDialog.js';
+import { SiteFooter, StatusBar, TopBar } from './components/Header.js';
+import { SearchDialog, searchableCandidates } from './components/SearchDialog.js';
 import { Loading, Notice, Section } from './components/ui.js';
 import { placeTitle } from './components/Place.js';
 import { MajoritarianView } from './views/Majoritarian.js';
 import { useGeography } from './map/useGeography.js';
 
 function About() {
-  return html`<${Section} title="Sobre os dados" className="prose">
+  return html`<${Section} heading="h1" title="Sobre os dados" className="prose">
     <p>Todos os números vêm dos arquivos públicos de resultados do Tribunal Superior Eleitoral, em
       <a href=${TSE_SITE} target="_blank" rel="noopener">resultados.tse.jus.br</a>, os mesmos usados pelo app Resultados do TSE.
       Nenhum resultado é estimado nem simulado. A única estimativa do site é a do quadro “Dá pra virar?” no 2º turno
@@ -35,7 +35,7 @@ function About() {
 }
 
 function ComingSoon({ what }) {
-  return html`<${Notice} title="Em breve">${what} chega na próxima etapa do site. Por enquanto, veja <a href="#/1turno/presidente">Presidente</a>.</${Notice}>`;
+  return html`<${Notice} heading="h1" title="Em breve">${what} chega na próxima etapa do site. Por enquanto, veja <a href="#/1turno/presidente">Presidente</a>.</${Notice}>`;
 }
 
 function useToast() {
@@ -52,8 +52,10 @@ export function App() {
   const enabled = ENABLED_OFFICES.includes(route.office);
   const officeState = useOffice(route.round, enabled ? route.office : 'presidente');
   const needsMap = (route.page === 'resultados' && enabled) || !!searching;
-  const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
+  const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap, { uf: route.uf, places: !!searching });
   const presidents = useOffice(1, 'presidente');
+  // Governor candidates feed the search only: no governor data on a president page until search opens (item 11).
+  const governors = useOffice(1, searching || route.office === 'governador' ? 'governador' : null);
 
   const title = route.page === 'resultados'
     ? `${OFFICES[route.office].label} · ${placeTitle(route, geo)} · ${ROUNDS[route.round].label}`
@@ -72,6 +74,11 @@ export function App() {
   }, [title]);
 
   useHotkey('/', event => { event.preventDefault(); setSearching(true); }, { enabled: !searching });
+  useEffect(() => {
+    const onKey = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearching(true); } };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
 
   const share = async () => {
     const text = scopeResult ? shareText(scopeResult, title) : title;
@@ -84,13 +91,15 @@ export function App() {
     }
   };
 
-  const candidates = presidents.data?.br?.candidates || [];
+  // Search covers every published race: president nationally and the governor of each state.
+  const candidates = useMemo(() => searchableCandidates(presidents.data, governors.data), [presidents.data, governors.data]);
   const finalists = runoffCandidates(presidents.data?.br).map(c => c.n);
   const pick = entry => {
     if (entry.type === 'candidate') {
       // Stay on the 2º turno when the candidate is in it; otherwise the 1º turno is where they ran.
-      const round = route.round === 2 && finalists.includes(entry.n) ? 2 : 1;
-      route.go({ page: 'resultados', round, office: 'presidente', uf: null, ibge: null, focus: entry.n });
+      const inRunoff = entry.office === 'presidente' ? finalists.includes(entry.n) : entry.kind === 'segundo-turno';
+      const round = route.round === 2 && inRunoff ? 2 : 1;
+      route.go({ page: 'resultados', round, office: entry.office, uf: entry.uf, ibge: null, focus: entry.n });
     }
     else if (entry.type === 'state') route.go({ page: 'resultados', uf: entry.id, ibge: null, office: entry.id === 'ZZ' ? 'presidente' : route.office });
     else route.go({ page: 'resultados', uf: geo?.byId.get(entry.id)?.uf, ibge: entry.id });
@@ -111,10 +120,8 @@ export function App() {
 
   return html`<div class="app">
     <a class="skip-link" href="#conteudo">Pular para os resultados</a>
-    <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}/>
-    <${OfficeTabs} route=${route}/>
-    ${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>
-`}
+    <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}
+      status=${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>`}/>
     <main id="conteudo" tabindex="-1">
       ${route.page === 'sobre' ? html`<${About}/>`
         : route.page === 'comparar' ? html`<${ComingSoon} what="A comparação entre 1º e 2º turno e com 2022"/>`
@@ -122,11 +129,8 @@ export function App() {
         : geoError ? html`<${Notice} tone="error" title="O mapa não carregou">${geoError.message}${' '}<button class="button" onClick=${retryGeo}>Tentar de novo</button></${Notice}>`
         : !geo ? html`<${Loading} text="Carregando resultados e mapa…"/>`
         : html`<${MajoritarianView} route=${route} geo=${geo} theme=${theme} office=${officeState} onChooseMunicipality=${() => setSearching('municipio')}/>`}
+      <${SiteFooter} feed=${route.page === 'resultados' && enabled ? officeState.feed : null} round=${route.round}/>
     </main>
-    <footer class="site-footer">
-      <p>Fonte: <a href=${TSE_SITE} target="_blank" rel="noopener">Tribunal Superior Eleitoral (TSE)</a> · resultados oficiais; estimativas só onde estiver escrito “estimativa”.${' '}<a href="#/sobre">Sobre os dados</a></p>
-      <p class="muted">Site independente, sem vínculo com o TSE. Em caso de divergência, vale o resultado publicado pelo TSE.</p>
-    </footer>
     ${searching && geo && (searching === 'municipio'
       ? html`<${SearchDialog} geo=${geo} candidates=${[]} only="municipality" onPick=${pickMine} onClose=${() => setSearching(false)}/>`
       : html`<${SearchDialog} geo=${geo} candidates=${candidates} onPick=${pick} onClose=${() => setSearching(false)}/>`)}

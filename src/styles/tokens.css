@@ -14,8 +14,8 @@
 :root {
   --font: Geist, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --text-xs: 0.6875rem;
-  --text-sm: 0.75rem;
+  --text-xs: 0.75rem; /* 12px: design minimum for any text */
+  --text-sm: 0.8125rem;
   --text-md: 0.875rem;
   --text-lg: 1.0625rem;
   --text-xl: 1.25rem;
@@ -30,7 +30,7 @@
 
   --radius-sm: 4px;
   --radius: 6px;
-  --radius-lg: 12px;
+  --radius-lg: 8px; /* cards: 1px border, 8px radius, no shadow (layout-pr2.md) */
 
   --topbar-height: 56px;
   --panel-width: 400px;

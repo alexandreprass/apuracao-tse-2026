@@ -108,7 +108,7 @@ test('routes round-trip through the URL hash', () => {
   assert.equal(toHash(r), '#/2turno/presidente/SP/3550308');
   assert.equal(parseHash('#/1turno/presidente/ZZ').uf, 'ZZ');
   assert.equal(parseHash('#/1turno/governador/ZZ').uf, null, 'abroad only votes for president');
-  assert.equal(parseHash('#/2turno/senador').office, 'presidente', 'no senate runoff');
+  assert.deepEqual([parseHash('#/2turno/senador').round, parseHash('#/2turno/senador').office], [1, 'senador'], 'no senate runoff: its own 1º turno');
   assert.equal(parseHash('#/sobre').page, 'sobre');
   assert.equal(parseHash('#/1turno/presidente/XX').uf, null);
   assert.doesNotThrow(() => parseHash('#/1turno/%E0/SP'));

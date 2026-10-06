@@ -1,0 +1,205 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { loadMunicipalPack, loadMunicipality, loadOffice, resetCaches, runoffUfs, signature } from '../src/data/source.js';
+
+const rjFixture = JSON.parse(readFileSync(new URL('./fixtures/rj-c0003-e006259-u.json', import.meta.url), 'utf8'));
+/** The RJ governor file as if it were the 2º turno, generated at `hg`. */
+const rjRunoff = hg => ({ ...rjFixture, t: '2', ele: '6260', dg: '25/10/2026', hg, tf: 'n' });
+const ok = body => ({ status: 200, ok: true, json: async () => body });
+const firstRoundCopy = ok({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, SP: { candidates: [{ kind: 'eleito' }] } } });
+
+// The browser path, with fetch replaced: TSE requests and requests for the shipped copy.
+function mockFetch({ tse, local }) {
+  globalThis.fetch = async url => {
+    const handler = String(url).startsWith('https://resultados.tse.jus.br') ? tse : local;
+    return handler(String(url));
+  };
+}
+const status = code => ({ status: code, ok: code < 400, json: async () => ({}) });
+const configWithout2ndRound = { status: 200, ok: true, json: async () => ({ pl: [{ cd: '3220', e: [{ cd: '6257' }, { cd: '6259' }] }] }) };
+
+test('2º turno for governors: a TSE that cannot be reached is an error, never "not published yet"', async () => {
+  // CORS or network failure makes fetch reject; the shipped copy has no 2º turno (404).
+  mockFetch({ tse: async () => { throw new TypeError('Failed to fetch'); }, local: async () => status(404) });
+  const data = await loadOffice(2, 'governador');
+  assert.equal(data.status, 'error');
+});
+
+test('2º turno for governors: before the TSE publishes it, the page waits', async () => {
+  mockFetch({ tse: async url => (url.endsWith('ele-c.json') ? configWithout2ndRound : status(404)), local: async () => status(404) });
+  const data = await loadOffice(2, 'governador');
+  assert.equal(data.status, 'not-published');
+});
+
+test('2º turno for governors: once published, only the runoff states are requested', async () => {
+  resetCaches();
+  const asked = [];
+  mockFetch({
+    tse: async url => {
+      if (url.endsWith('ele-c.json')) return { status: 200, ok: true, json: async () => ({ pl: [{ e: [{ cd: '6260' }] }] }) };
+      asked.push(url.match(/dados\/(\w\w)\//)[1]);
+      return status(404);
+    },
+    local: async url => (url.includes('tse/1/governador.json')
+      ? { status: 200, ok: true, json: async () => ({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, SP: { candidates: [{ kind: 'eleito' }] } } }) }
+      : status(404)),
+  });
+  const data = await loadOffice(2, 'governador');
+  assert.deepEqual(asked, ['rj']);
+  assert.equal(data.status, 'not-published');
+});
+
+test('município ao vivo: falha de rede vira erro, e 404 continua sendo "não publicado"', async () => {
+  resetCaches();
+  const codes = ok({ '3304557': ['60011', 'RJ'] });
+  mockFetch({ tse: async () => { throw new TypeError('Failed to fetch'); }, local: async () => codes });
+  assert.equal((await loadMunicipality(2, 'governador', '3304557')).status, 'error');
+  mockFetch({ tse: async () => status(404), local: async () => codes });
+  assert.equal((await loadMunicipality(2, 'governador', '3304557')).status, 'not-published');
+});
+
+test('2º turno for governors: a state that fails mid-count keeps its last good result, flagged as stale', async () => {
+  resetCaches();
+  let rjDown = false;
+  mockFetch({
+    tse: async url => {
+      if (!url.includes('/rj/')) return status(404);
+      if (rjDown) throw new TypeError('Failed to fetch');
+      return ok(rjRunoff('19:30:00'));
+    },
+    local: async url => (url.includes('tse/1/governador.json') ? firstRoundCopy : status(404)),
+  });
+  const first = await loadOffice(2, 'governador');
+  assert.equal(first.source, 'tse');
+  assert.ok(first.uf.RJ);
+  rjDown = true;
+  const second = await loadOffice(2, 'governador', first);
+  assert.notEqual(second.status, 'not-published');
+  assert.equal(second.uf.RJ, first.uf.RJ, 'o último boletim bom continua na tela');
+  assert.ok(second.stale || second.staleUfs?.includes('RJ'), 'a tela avisa que o dado está desatualizado');
+});
+
+test('2º turno for governors: the same boletim keeps the same objects and signature (nothing is redrawn)', async () => {
+  resetCaches();
+  let hg = '19:30:00';
+  mockFetch({
+    tse: async url => (url.includes('/rj/') ? ok(rjRunoff(hg)) : status(404)),
+    local: async url => (url.includes('tse/1/governador.json') ? firstRoundCopy : status(404)),
+  });
+  const first = await loadOffice(2, 'governador');
+  const again = await loadOffice(2, 'governador', first);
+  assert.equal(again.uf.RJ, first.uf.RJ);
+  assert.equal(signature(again), signature(first));
+  hg = '19:31:00';
+  const changed = await loadOffice(2, 'governador', again);
+  assert.notEqual(signature(changed), signature(again));
+});
+
+test('2º turno for governors: with two races, only the state that failed is marked as stale', async () => {
+  resetCaches();
+  let amDown = false;
+  const twoRaces = ok({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, AM: { candidates: [{ kind: 'segundo-turno' }] } } });
+  mockFetch({
+    tse: async url => {
+      if (url.includes('/am/') && amDown) throw new TypeError('Failed to fetch');
+      return url.includes('/rj/') || url.includes('/am/') ? ok(rjRunoff('19:30:00')) : status(404);
+    },
+    local: async url => (url.includes('tse/1/governador.json') ? twoRaces : status(404)),
+  });
+  const first = await loadOffice(2, 'governador');
+  amDown = true;
+  const second = await loadOffice(2, 'governador', first);
+  assert.deepEqual(second.staleUfs, ['AM']);
+  assert.equal(second.uf.AM, first.uf.AM);
+  assert.ok(!second.liveError);
+});
+
+test('2º turno for governors: before the polls close, a waiting page asks the TSE for one state only', async () => {
+  resetCaches();
+  const asked = [];
+  const twoRaces = ok({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, AM: { candidates: [{ kind: 'segundo-turno' }] } } });
+  mockFetch({
+    tse: async url => { asked.push(url); return status(404); },
+    local: async url => (url.includes('tse/1/governador.json') ? twoRaces : status(404)),
+  });
+  const data = await loadOffice(2, 'governador');
+  assert.equal(data.status, 'not-published');
+  assert.equal(asked.length, 1);
+});
+
+test('2º turno for governors: a state without the TSE runoff mark in the 1º turno copy is never requested', async () => {
+  resetCaches();
+  const first = JSON.parse(readFileSync(new URL('../public/data/tse/1/governador.json', import.meta.url), 'utf8'));
+  first.uf.ES.candidates = first.uf.ES.candidates.map((c, i) => ({ ...c, kind: i === 0 ? 'eleito' : 'nao-eleito' }));
+  const asked = [];
+  mockFetch({
+    tse: async url => {
+      if (url.endsWith('ele-c.json')) return { status: 200, ok: true, json: async () => ({ pl: [{ e: [{ cd: '6260' }] }] }) };
+      asked.push(url.match(/dados\/(\w\w)\//)[1]);
+      return status(404);
+    },
+    local: async url => (url.includes('tse/1/governador.json') ? ok(first) : status(404)),
+  });
+  assert.deepEqual(await runoffUfs('governador'), ['AC', 'AM', 'DF', 'RJ', 'RN', 'TO']);
+  await loadOffice(2, 'governador');
+  assert.ok(asked.length > 0 && !asked.includes('es'), asked.join());
+});
+
+test('governor cadence follows PR #1 pollsClosed: 5 min before 17h of 25/10, 30 s after, 30 s retry on failure', async () => {
+  const { pollDelay } = await import('../src/data/feed.js');
+  const before = Date.parse('2026-10-25T19:55:00Z'), after = Date.parse('2026-10-25T20:00:00Z');
+  assert.equal(pollDelay({ status: 'not-published' }, 2, before), 5 * 60_000);
+  assert.equal(pollDelay({ status: 'not-published' }, 2, after), 30_000);
+  assert.equal(pollDelay({ status: 'error' }, 2, before), 30_000);
+  // After the polls close, the probe stops: every runoff state is asked for.
+  resetCaches();
+  const asked = [];
+  const twoRaces = ok({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, AM: { candidates: [{ kind: 'segundo-turno' }] } } });
+  mockFetch({ tse: async url => { asked.push(url.match(/dados\/(\w\w)\//)?.[1]); return status(404); },
+    local: async url => (url.includes('tse/1/governador.json') ? twoRaces : status(404)) });
+  const realNow = Date.now;
+  Date.now = () => after;
+  try { await loadOffice(2, 'governador'); } finally { Date.now = realNow; }
+  assert.deepEqual(asked.filter(Boolean).sort(), ['am', 'rj']);
+  assert.ok(!/roundStarted/.test(readFileSync(new URL('../src/data/source.js', import.meta.url), 'utf8')), 'one shared helper: pollsClosed');
+});
+
+test('manifest: no request for a round-2 copy until data/manifest.json lists it; a page left open then picks it up', async () => {
+  resetCaches();
+  const round1Only = { rounds: { 1: { offices: ['presidente', 'governador'], municipal: ['presidente', 'governador'] } } };
+  let manifest = round1Only;
+  const local = [];
+  const copy2 = { round: 2, br: { scope: 'br', candidates: [], updated: '25/10/2026 18:00:00' }, uf: {} };
+  mockFetch({
+    tse: async url => (url.endsWith('ele-c.json') ? configWithout2ndRound : status(404)),
+    local: async url => {
+      local.push(url.replace(/^.*\/data\//, ''));
+      if (url.endsWith('manifest.json')) return ok(manifest);
+      return url.includes('tse/2/presidente.json') ? ok(copy2) : status(404);
+    },
+  });
+  const first = await loadOffice(2, 'presidente');
+  assert.equal(first.status, 'not-published');
+  assert.deepEqual(local, ['manifest.json'], 'only the manifest, no 404 on data/tse/2/*');
+  assert.equal(await loadMunicipalPack(2, 'presidente', 'RJ'), null);
+  assert.ok(!local.some(u => u.startsWith('tse/2/')));
+  // Same open page, next poll cycles: the manifest is read again each time.
+  const second = await loadOffice(2, 'presidente', first);
+  assert.equal(second.status, 'not-published');
+  assert.equal(local.filter(u => u === 'manifest.json').length, 3);
+  manifest = { rounds: { ...round1Only.rounds, 2: { offices: ['presidente'], municipal: [] } } };
+  const third = await loadOffice(2, 'presidente', second);
+  assert.equal(third.source, 'local');
+  assert.equal(third.round, 2);
+  assert.ok(local.includes('tse/2/presidente.json'));
+});
+
+test('manifest: build/fetch script lists exactly the rounds and offices on disk (and the shipped file matches)', async () => {
+  const { buildManifest } = await import('../scripts/manifest.mjs');
+  const built = await buildManifest();
+  assert.deepEqual(Object.keys(built.rounds), ['1']);
+  assert.deepEqual(built.rounds[1].municipal, ['presidente', 'governador']);
+  assert.ok(built.rounds[1].offices.includes('governador'));
+  assert.deepEqual(JSON.parse(readFileSync(new URL('../public/data/manifest.json', import.meta.url), 'utf8')), built);
+});

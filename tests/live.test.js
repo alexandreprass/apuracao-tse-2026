@@ -5,7 +5,7 @@ import { test, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { Feed, followFeed, municipalityFeed, pollDelay } from '../src/data/feed.js';
 import { cached, getJson, loadOffice, setFetchTimeout, signature, Unavailable } from '../src/data/source.js';
-import { announcement, noBoletimNotice, statusInfo } from '../src/data/status.js';
+import { announcement, liveRegionText, noBoletimNotice, statusInfo } from '../src/data/status.js';
 import { stateRows } from '../src/data/analysis.js';
 import { UFS } from '../src/data/states.js';
 
@@ -295,6 +295,9 @@ test('with ?fonte=tse and the TSE down, with no boletim at all: amber "nenhum bo
     assert.match(notice.text, /a cada 30 s/);
     assert.equal(pollDelay(data, 1), 30000);
     assert.equal(statusInfo(data, { round: 1 }).tone, 'is-stale');
+    // The status bar says only "TSE indisponível"; the warning carries the rest, with no technical text.
+    assert.equal(statusInfo(data, { round: 1 }).state, 'TSE indisponível');
+    assert.ok(!('detail' in notice) && !/\(/.test(notice.text + notice.title));
     // The warning style is amber (the --warn-* tokens), not red.
     const css = readFileSync(new URL('../src/styles/components.css', import.meta.url), 'utf8');
     const rule = /\.notice\.is-warning \{([^}]*)\}/.exec(css)[1];
@@ -392,4 +395,19 @@ test('static caches expire and keep the old value when a refresh fails', async (
   assert.deepEqual(await cached(store, 'k', load, 11 * 60_000), { n: 1 }, 'failed refresh keeps the good value');
   assert.equal(calls, 2);
   assert.deepEqual(await cached(store, 'k', load, 30 * 60_000), { n: 3 });
+});
+
+test('screen reader: "TSE indisponível" does not linger once the TSE answers again', () => {
+  const error = statusInfo({ status: 'error', message: 'timeout' }, { round: 2 });
+  const waiting = statusInfo({ status: 'not-published' }, { round: 2 });
+  let text = liveRegionText({ kind: 'waiting' }, error, '');
+  assert.match(text, /TSE está indisponível/);
+  assert.equal(liveRegionText(error, error, text), text, 'a routine poll keeps the text (nothing re-announced)');
+  // Back to "not published yet": the live region is updated, no longer saying the TSE is down.
+  text = liveRegionText(error, waiting, text);
+  assert.match(text, /restabelecida/);
+  assert.doesNotMatch(text, /indisponível/);
+  // Any other change with nothing to announce clears it.
+  assert.equal(liveRegionText({ kind: 'stale' }, { kind: 'partial', partial: { text: 'x', names: 'y' } }, 'O TSE está indisponível.').includes('indisponível'), false);
+  assert.equal(liveRegionText({ kind: 'error' }, { kind: 'loading' }, 'O TSE está indisponível.'), 'O TSE está indisponível.', 'loading is not a state change');
 });

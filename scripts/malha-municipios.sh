@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuilds public/data/brasil.topo.json from the IBGE municipal mesh (malha municipal 2025, 5.571 municípios,
+# Rebuilds geo/brasil.topo.json (split for the site by scripts/geo-split.mjs) from the IBGE municipal mesh (malha municipal 2025, 5.571 municípios,
 # with Boa Esperança do Norte/MT). Needs ~600 MB of disk and mapshaper (npx mapshaper@0.6).
 #   https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2025/Brasil/BR_Municipios_2025.zip
 # The two "Área Operacional" lagoons of RS are dropped. Coordinates go to SIRGAS 2000 / Brazil Polyconic

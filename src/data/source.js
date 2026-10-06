@@ -6,7 +6,7 @@
 //   office and round; after that it is treated as unavailable as well.
 // - On any failure the last good data is kept (whole office or per state) and flagged as stale,
 //   so a failure in the middle of a count never wipes the results off the screen.
-import { OFFICES, pollsClosed, SOURCE_MODE, tseResultUrl } from '../config.js';
+import { MUNICIPAL_OFFICES, OFFICES, pollsClosed, SOURCE_MODE, tseResultUrl } from '../config.js';
 import { normalizeResult, parseTseDate } from './normalize.js';
 import { UFS } from './states.js';
 
@@ -87,8 +87,8 @@ async function pool(items, size, worker) {
   return out;
 }
 
-/** Places of one office: Brasil and abroad for president, then the 27 states. */
-const placesOf = office => [...(OFFICES[office].federal ? ['br', 'zz'] : []), ...UFS.map(uf => uf.toLowerCase())];
+/** Places of one office: Brasil and abroad for president, then the states (all 27 unless a list is given). */
+const placesOf = (office, ufs = UFS) => [...(OFFICES[office].federal ? ['br', 'zz'] : []), ...ufs.map(uf => uf.toLowerCase())];
 const getPlace = (data, place) => (place === 'br' ? data?.br : place === 'zz' ? data?.zz : data?.uf?.[place.toUpperCase()]);
 const setPlace = (data, place, row) => {
   if (place === 'br') data.br = row; else if (place === 'zz') data.zz = row; else data.uf[place.toUpperCase()] = row;
@@ -127,6 +127,11 @@ export function signature(data) {
  * President: each cycle asks only for the national file. The states and abroad are asked for only
  * when the national file changed (a new totalization), plus any place that failed last time.
  * That is 1 request per cycle while nothing changes, instead of 29.
+ *
+ * Governors (no national file): each cycle asks for the states in the race (in the 2º turno, only the
+ * ones the TSE sent to a runoff: 7 in 2026). The browser revalidates them with ETag, so an unchanged
+ * file is a 304 of a few bytes, and a state whose boletim did not change keeps its previous object
+ * (same signature, nothing redrawn).
  */
 export async function liveOffice(round, office, previous = null) {
   const federal = OFFICES[office].federal;
@@ -140,7 +145,15 @@ export async function liveOffice(round, office, previous = null) {
     }
     br = normalizeResult(raw);
   }
-  const allPlaces = placesOf(office).filter(p => p !== 'br');
+  const ufs = round > 1 && !federal ? await runoffUfs(office) : UFS;
+  const allPlaces = placesOf(office, ufs).filter(p => p !== 'br');
+  // State offices before the polls close (PR #1's pollsClosed, the same switch as the 5 min → 30 s cadence),
+  // while nothing was seen yet: one state stands in for the others (like the national file for president),
+  // so a waiting page costs 1 request, not 7 or 27.
+  if (!federal && !seenBefore && !pollsClosed(round) && allPlaces.length > 1) {
+    const probe = await getJson(tseResultUrl(round, office, allPlaces[0]), { fresh: true }); // throws Unavailable
+    if (!probe) throw new NotPublished('O TSE ainda não publicou resultados deste turno.');
+  }
   const unchanged = federal && previous?.br && previous.br.generated === br.generated && previous.br.updated === br.updated;
   const retry = new Set((previous?.staleUfs || []).map(p => p.toLowerCase()));
   const places = unchanged ? allPlaces.filter(p => retry.has(p)) : allPlaces;
@@ -166,11 +179,17 @@ export async function liveOffice(round, office, previous = null) {
       continue;
     }
     const row = fetched.get(place);
-    if (row && !row.failed) { setPlace(data, place, row); found++; continue; }
+    if (row && !row.failed) {
+      // Same boletim as last time: keep the previous object, so nothing downstream is recomputed.
+      const old = getPlace(previous, place);
+      setPlace(data, place, old && old.generated === row.generated && old.updated === row.updated ? old : row);
+      found++;
+      continue;
+    }
     // Missing or failed: reuse the last good result of this place, and say so.
     const old = getPlace(previous, place);
     if (old) { setPlace(data, place, old); data.staleUfs.push(place.toUpperCase()); }
-    else if (row?.failed && federal) data.staleUfs.push(place.toUpperCase());
+    else if (row?.failed) data.staleUfs.push(place.toUpperCase());
   }
   if (!found && !unchanged) {
     if (failures || seenBefore) throw new Unavailable(failures ? UNREACHABLE : 'O TSE deixou de responder os arquivos de resultado.');
@@ -179,7 +198,35 @@ export async function liveOffice(round, office, previous = null) {
   return data;
 }
 
-async function bundleOffice(round, office, fresh = false) {
+const runoffCache = new Map();
+/**
+ * States with a runoff for a state office, from the TSE "situação" in the shipped 1º turno copy
+ * (all 27 if the copy cannot be read, so a missing file never hides a race).
+ */
+export function runoffUfs(office) {
+  return cached(runoffCache, office, () => getJson(bundleUrl(`tse/1/${office}.json`)).catch(() => null))
+    .then(first => (first?.uf ? UFS.filter(uf => (first.uf[uf]?.candidates || []).some(c => c.kind === 'segundo-turno')) : UFS));
+}
+
+/**
+ * data/manifest.json: the rounds and offices the shipped copy has (written by the build and by fetch-tse).
+ * Re-read on every poll cycle (tiny; a 304 is fine), never once for good, so a page left open picks up a
+ * newly copied round. null if it cannot be read.
+ */
+export const loadManifest = () => getJson(bundleUrl('manifest.json'), { fresh: true }).catch(() => null);
+
+/** The manifest for one poll cycle; not read at all when the shipped copy is never used (?fonte=tse). */
+const cycleManifest = round => (modeFor(round) === 'live-only' ? Promise.resolve(null) : loadManifest());
+
+/** Whether the shipped copy has this round/office (`kind`: offices or municipal). No manifest: ask anyway, never hide a copy. */
+export async function bundleListed(round, office, kind = 'offices', manifest = loadManifest()) {
+  const m = await manifest;
+  if (!m?.rounds) return true;
+  return !!m.rounds[round]?.[kind]?.includes(office);
+}
+
+async function bundleOffice(round, office, fresh = false, manifest = loadManifest()) {
+  if (!(await bundleListed(round, office, 'offices', manifest))) throw new NotPublished('Sem cópia local destes resultados.');
   // First load: a plain request, so the browser reuses the <link rel="preload"> of index.html.
   const data = await getJson(bundleUrl(`tse/${round}/${office}.json`), { fresh }).catch(() => null);
   if (!data) throw new NotPublished('Sem cópia local destes resultados.');
@@ -233,11 +280,14 @@ export async function loadWithFallback(round, live, bundle, previous = null, now
 }
 
 /** President, governors or senators: every place for one round. */
-export const loadOffice = (round, office, previous = null) =>
-  loadWithFallback(round, last => liveOffice(round, office, last), () => bundleOffice(round, office, !!previous), previous);
+export function loadOffice(round, office, previous = null) {
+  const manifest = cycleManifest(round); // every cycle
+  return loadWithFallback(round, last => liveOffice(round, office, last), () => bundleOffice(round, office, !!previous, manifest), previous);
+}
 
 /** Proportional offices (deputies) are loaded one state at a time. */
 export function loadProportional(round, office, uf, previous = null) {
+  const manifest = cycleManifest(round); // every cycle
   return loadWithFallback(round,
     async last => {
       const raw = await getJson(tseResultUrl(round, office, uf.toLowerCase()), { fresh: true });
@@ -248,6 +298,7 @@ export function loadProportional(round, office, uf, previous = null) {
       return { result: normalizeResult(raw, { compact: true }) };
     },
     async () => {
+      if (!(await bundleListed(round, office, 'offices', manifest))) throw new NotPublished('Sem cópia local deste resultado.');
       const data = await getJson(bundleUrl(`tse/${round}/${office}/${uf}.json`), { fresh: true }).catch(() => null);
       if (!data) throw new NotPublished('Sem cópia local deste resultado.');
       return data;
@@ -326,14 +377,19 @@ export async function loadMunicipality(round, office, ibge, previous = null, now
 }
 
 const indexCache = new Map(), packCache = new Map();
+/** Municipal results of an office exist in the shipped copy of this round (older indexes: president only). */
+const hasMunicipal = (index, office) => !!(index?.municipal?.[office] || (office === 'presidente' && index?.municipalities));
 export const loadIndex = round =>
   cached(indexCache, round, () => getJson(bundleUrl(`tse/${round}/index.json`), { fresh: true }).catch(() => null));
 
-/** Presidential results of every municipality of a state (shipped copy, with its `fetchedAt`). */
-export function loadMunicipalPack(round, uf) {
-  return cached(packCache, `${round}/${uf}`, () => loadIndex(round)
-    // Only ask for the file when the shipped index says municipal results exist for this round.
-    .then(index => (index?.municipalities ? getJson(bundleUrl(`tse/${round}/presidente-municipios/${uf}.json`), { fresh: true }) : null))
+/** Results of one office in every municipality of a state (shipped copy, with its `fetchedAt`), or null. */
+export async function loadMunicipalPack(round, office, uf) {
+  if (!MUNICIPAL_OFFICES.includes(office)) return null;
+  // Nothing is asked for (not even the round's index) until the manifest lists this round's municipal copy.
+  if (!(await bundleListed(round, office, 'municipal'))) return null;
+  return cached(packCache, `${round}/${office}/${uf}`, () => loadIndex(round)
+    // Only ask for the file when the shipped index says it exists (no 404 noise before a round is copied).
+    .then(index => (hasMunicipal(index, office) ? getJson(bundleUrl(`tse/${round}/${office}-municipios/${uf}.json`), { fresh: true }) : null))
     .catch(() => null));
 }
 
@@ -343,7 +399,5 @@ export function load2022(path) {
   return cache2022.get(path);
 }
 
-export const roundStarted = round => pollsClosed(round);
-
 /** For tests: forget every in-memory cache. */
-export function resetCaches() { codesCache.clear(); indexCache.clear(); packCache.clear(); cache2022.clear(); }
+export function resetCaches() { codesCache.clear(); runoffCache.clear(); indexCache.clear(); packCache.clear(); cache2022.clear(); }

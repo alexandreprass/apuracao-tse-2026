@@ -158,10 +158,20 @@
 }
 
 /* Small maps: tighter labels so neighbouring states (Nordeste, DF/GO) do not overlap. */
-.state-labels.is-narrow .state-label { padding: 1px; font-size: 10px; }
-.state-labels.is-narrow .state-callout { font-size: 10px; height: 17px; }
+.state-labels.is-narrow .state-label { padding: 1px; font-size: var(--text-xs); }
+.state-labels.is-narrow .state-callout { font-size: var(--text-xs); height: 18px; }
 
 /* Phones: the zoom buttons move to the left so they do not cover the ES/RJ callouts on the right. */
 @media (max-width: 519px) {
   .national-map .zoom-controls { left: var(--space-2); right: auto; }
+}
+
+/* Runoff badge on a state label: a small hatched "2T" under the code (beside it in the callouts). It hangs
+   below the label, so the code stays centred on the state and nothing covers it. */
+.state-label .label-badge, .state-callout .label-badge {
+  display: block; padding: 0 3px; border-radius: 3px; line-height: 1.2;
+  background: repeating-linear-gradient(-45deg, var(--surface) 0 3px, var(--sunken) 3px 5px); color: var(--ink); border: 1px solid var(--line-strong);
+  font-size: var(--text-xs); font-weight: 600; white-space: nowrap; text-shadow: none;
+}
+.state-label .label-badge { position: absolute; top: calc(100% - 3px); left: 50%; transform: translateX(-50%);
 }

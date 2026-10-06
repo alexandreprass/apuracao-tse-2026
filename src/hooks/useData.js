@@ -25,7 +25,8 @@ export function useFeed(feed, events = ['data']) {
 export const officeFeed = (round, office) => getFeed(`office|${round}|${office}`,
   () => new Feed(previous => loadOffice(round, office, previous), { delay: data => pollDelay(data, round) }));
 
-export const useOffice = (round, office) => useFeed(officeFeed(round, office));
+/** One office's feed; a null office loads nothing (e.g. governors on the president page until search opens). */
+export const useOffice = (round, office) => useFeed(office ? officeFeed(round, office) : null);
 
 export const useProportional = (round, office, uf) => useFeed(uf ? getFeed(`prop|${round}|${office}|${uf}`,
   () => new Feed(previous => loadProportional(round, office, uf, previous), { delay: data => pollDelay(data, round) })) : null);
@@ -56,6 +57,6 @@ export function useAsync(key, fn, every = 0) {
   return state;
 }
 
-/** Shipped municipal file of a state; re-read when its cache expires, for copies republished during a count. */
-export const useMunicipalPack = (round, uf) =>
-  useAsync(`${round}|${uf}`, () => (uf && uf !== 'ZZ' ? loadMunicipalPack(round, uf) : null), STATIC_TTL_MS);
+/** Shipped municipal file of one office and state; re-read when its cache expires, for copies republished during a count. */
+export const useMunicipalPack = (round, office, uf) =>
+  useAsync(`${round}|${office}|${uf}`, () => (uf && uf !== 'ZZ' ? loadMunicipalPack(round, office, uf) : null), STATIC_TTL_MS);
