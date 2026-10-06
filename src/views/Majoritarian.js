@@ -195,8 +195,8 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
       const [a, b] = runoffCandidates(data.uf[uf]);
       return html`<li key=${uf}><a href=${`#/${round}turno/${office}/${uf}`}><b>${uf}</b></a>
         <div class="race-candidate-pair">
-          <span><b class="placement-label">1º colocado</b><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>– ${pct(a.pct)}</small></span>
-          <span><b class="placement-label">2º colocado</b><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>– ${pct(b.pct)}</small></span>
+          <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>– ${pct(a.pct)}</small></span>
+          <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>– ${pct(b.pct)}</small></span>
         </div></li>`;
     })}</ul></div>`}
   <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState} showStatus round=${round} staleUfs=${data.staleUfs}/></div>`;
@@ -227,8 +227,8 @@ function StateRunoffWaiting({ office, first, data, geo, theme, route, crumbs, fe
       const [a, b] = runoffCandidates(first.uf[uf]);
       return html`<li key=${uf} title=${[a, b].map(c => `${titleCase(c.name)}: ${candidateExtra(c)}`).join('\\n')}><a href=${`#/2turno/${office}/${uf}`}><b>${uf}</b></a>
         <div class="race-candidate-pair">
-          <span><b class="placement-label">1º colocado</b><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>– ${pct(a.pct)}</small></span>
-          <span><b class="placement-label">2º colocado</b><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>– ${pct(b.pct)}</small></span>
+          <span><i class="swatch" style=${{ background: partyColor(a.party) }}></i>${titleCase(a.name)} <small>– ${pct(a.pct)}</small></span>
+          <span><i class="swatch" style=${{ background: partyColor(b.party) }}></i>${titleCase(b.name)} <small>– ${pct(b.pct)}</small></span>
         </div></li>`;
     })}</ul>
     <p class="wait-note muted small" title=${cadence()}>Os votos aparecem aqui assim que o TSE publicar o 1º boletim. Nos outros ${27 - list.length} estados o governador foi eleito no 1º turno.</p>
