@@ -12,7 +12,7 @@ export function findEntries(geo, candidates, query, only = null) {
   const needle = normalize(query.trim());
   if (only === 'municipality') {
     if (!needle) return [];
-    return geo.municipalities.filter(m => normalize(m.name).includes(needle))
+    return (geo.places || geo.municipalities).filter(m => normalize(m.name).includes(needle))
       .sort((a, b) => (normalize(a.name).startsWith(needle) ? 0 : 1) - (normalize(b.name).startsWith(needle) ? 0 : 1) || b.population - a.population)
       .slice(0, MAX).map(m => ({ type: 'municipality', id: m.id, name: m.name, detail: `Município · ${STATES[m.uf][0]}`, tag: m.uf }));
   }
@@ -27,7 +27,7 @@ export function findEntries(geo, candidates, query, only = null) {
     .filter(([uf, [name]]) => normalize(name).includes(needle) || uf.toLowerCase() === needle)
     .map(([uf, [name, region]]) => ({ type: 'state', id: uf, name, detail: `Estado · ${region}`, tag: uf }));
   if ('exterior'.startsWith(needle)) states.push({ type: 'state', id: 'ZZ', name: 'Exterior', detail: 'Eleitores fora do Brasil', tag: 'ZZ' });
-  const municipalities = geo.municipalities.filter(m => normalize(m.name).includes(needle))
+  const municipalities = (geo.places || geo.municipalities).filter(m => normalize(m.name).includes(needle))
     .sort((a, b) => (normalize(a.name).startsWith(needle) ? 0 : 1) - (normalize(b.name).startsWith(needle) ? 0 : 1) || b.population - a.population)
     .slice(0, MAX).map(m => ({ type: 'municipality', id: m.id, name: m.name, detail: `Município · ${STATES[m.uf][0]}`, tag: m.uf }));
   return [...found, ...states, ...municipalities];

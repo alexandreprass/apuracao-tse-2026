@@ -49,3 +49,20 @@ test('Meu município: compact rows stack and never scroll sideways at 390px', ()
   assert.match(css, /\.mine-rows \{ display: grid;/);
   assert.match(css, /\.mine-finalists span \{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; \}/);
 });
+
+test('Meu município: while the files load the row says "carregando", never "aguardando o TSE" (aprimoramento item 5)', () => {
+  assert.equal(mineRow({ published: false, firstRow: undefined, loading: true }).phase, 'loading');
+  assert.equal(mineRow({ published: false, firstRow: undefined, loading: false }).phase, 'waiting');
+  assert.equal(mineRow({ published: true, live: null, loading: true }).phase, 'loading');
+  const src = readFileSync(new URL('../src/components/MyMunicipality.js', import.meta.url), 'utf8');
+  assert.match(src, /loading: \(\) => 'carregando…'/);
+});
+
+test('Meu município is on the 2º turno waiting page of Governador too, not only Presidente (aprimoramento item 4)', () => {
+  const src = readFileSync(new URL('../src/views/Majoritarian.js', import.meta.url), 'utf8');
+  const waiting = src.slice(src.indexOf('export function RunoffWaiting'), src.indexOf('\n}\n', src.indexOf('export function RunoffWaiting')));
+  assert.match(waiting, /MyMunicipality/);
+  assert.doesNotMatch(waiting, /office === 'presidente' && geo && html`<\$\{MyMunicipality\}/);
+  // RJ (a governor runoff) gets both rows.
+  assert.deepEqual(mineOffices('RJ', governors), ['presidente', 'governador']);
+});

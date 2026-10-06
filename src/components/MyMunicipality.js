@@ -1,10 +1,11 @@
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { unpackMunicipalities } from '../data/analysis.js';
 import { finalistNumbers, mineOffices, mineRow } from '../data/mine.js';
-import { stateName } from '../data/states.js';
+import { stateName, ufOfIbge } from '../data/states.js';
+import { loadState } from '../map/useGeography.js';
 import { OFFICES } from '../config.js';
 import { officeFeed, useFeed, useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useData.js';
 import { useMyMunicipality } from '../hooks/useMyMunicipality.js';
@@ -18,6 +19,7 @@ const RIGHT = {
   error: () => 'TSE sem resposta',
   'not-published': () => 'aguardando o TSE',
   waiting: () => 'aguardando',
+  loading: () => 'carregando…',
 };
 
 /** One compact row: office, the two finalists, a thin bar and the city's % apurado on the right. */
@@ -33,7 +35,9 @@ function MineRow({ office, place, ibge, officeData }) {
   const race2 = federal ? officeData?.br : officeData?.uf?.[place.uf];
   const firstRow = useMemo(() => unpackMunicipalities(pack1.value, race1, null).get(ibge), [pack1.value, race1, ibge]);
   const copyRow = useMemo(() => (published ? unpackMunicipalities(pack2.value, race2, null).get(ibge) : null), [pack2.value, race2, ibge, published]);
-  const row = mineRow({ published, live: live.data, copyRow, firstRow, numbers: finalistNumbers(race1) });
+  // Loading until the office, the 1º turno race and the municipal file have answered (and the live read, once published).
+  const loading = officeData === undefined || (published ? !live.data && pack2.value === undefined : !first.data || pack1.value === undefined);
+  const row = mineRow({ published, live: live.data, copyRow, firstRow, numbers: finalistNumbers(race1), loading });
   const label = OFFICES[office].label || OFFICES[office].name;
   return html`<div class=${'mine-row is-' + row.phase + (row.stale ? ' is-stale' : '')} data-office=${office}>
     <span class="mine-office">${label}</span>
@@ -42,7 +46,8 @@ function MineRow({ office, place, ibge, officeData }) {
       <ol class="mine-finalists">${row.candidates.map(c => html`<li key=${c.n}>
         <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span>${titleCase(c.name)}</span><b>${pct(c.pct)}</b></li>`)}</ol>
       <${ShareBar} candidates=${row.candidates} max=${2}/>`
-    : html`<p class="mine-note muted small">${row.phase === 'error' ? 'Não foi possível ler este município no TSE agora; tentando de novo.' : 'O resultado aparece aqui sozinho quando o TSE publicar.'}</p>`}
+    : html`<p class="mine-note muted small">${row.phase === 'loading' ? 'Carregando o resultado do município…'
+      : row.phase === 'error' ? 'Não foi possível ler este município no TSE agora; tentando de novo.' : 'O resultado aparece aqui sozinho quando o TSE publicar.'}</p>`}
   </div>`;
 }
 
@@ -53,6 +58,8 @@ function MineRow({ office, place, ibge, officeData }) {
 export function MyMunicipality({ geo, onChoose }) {
   const [ibge, save] = useMyMunicipality();
   const place = ibge ? geo.byId.get(ibge) : null;
+  // The saved city's name comes with its state's mesh, downloaded only now (not on the first visit).
+  useEffect(() => { if (ibge && !place) loadState(ufOfIbge(ibge)).catch(() => {}); }, [ibge, !place]);
   const officeData = useOffice(2, 'presidente').data; // the 2º turno of president, shared with its page
   const governorFirst = useOffice(1, 'governador').data;
   const offices = mineOffices(place?.uf, governorFirst);

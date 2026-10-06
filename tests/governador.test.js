@@ -6,7 +6,7 @@ import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, readPackR
 import { statusFill, MAP_EMPTY, partyBadge, partyFill } from '../src/lib/color.js';
 import * as c from '../scripts/palette/colorlib.mjs';
 import { UFS } from '../src/data/states.js';
-import { parseHash } from '../src/hooks/useRoute.js';
+import { canonicalHash, parseHash } from '../src/hooks/useRoute.js';
 import { findEntries, searchableCandidates } from '../src/components/SearchDialog.js';
 
 const json = path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
@@ -139,7 +139,10 @@ test('routes: governor pages per state, 2º turno for governors but not senators
   const r = parseHash('#/2turno/governador/RJ');
   assert.deepEqual([r.round, r.office, r.uf], [2, 'governador', 'RJ']);
   assert.deepEqual(Object.values(parseHash('#/1turno/governador/BA/2927408')).slice(1, 5), [1, 'governador', 'BA', '2927408']);
-  assert.equal(parseHash('#/2turno/senador/SP').office, 'presidente');
+  // Senado has no 2º turno: the address is replaced by its 1º turno (never Presidente).
+  assert.deepEqual([parseHash('#/2turno/senador/SP').round, parseHash('#/2turno/senador/SP').office], [1, 'senador']);
+  assert.equal(canonicalHash('#/2turno/senador/SP?fonte=tse'), '#/1turno/senador/SP?fonte=tse');
+  assert.equal(canonicalHash('#/2turno/governador/RJ'), null);
 });
 
 test('search finds governor candidates with their state, and states', () => {

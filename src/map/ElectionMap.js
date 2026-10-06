@@ -24,7 +24,8 @@ const MIN_WIDTH_FOR_SHARES = 500;
 
 const inside = (box, x, y) => x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
 const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-const calloutPosition = (index, size) => [size.width * .882, size.height * .29 + index * CALLOUT_ROW + (index > 4 ? 7 : 0)];
+// The callout column sits at 88% of the width, pulled left when its widest box (code, %, "2T") would cross the edge.
+const calloutPosition = (index, size, width = 62) => [Math.min(size.width * .882, size.width - 8 - width), size.height * .29 + index * CALLOUT_ROW + (index > 4 ? 7 : 0)];
 
 /**
  * `unit` picks what is drawn before a state is opened (states, municipalities, or one bubble
@@ -86,7 +87,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.save();
         ctx.clip(state.fill);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.strokeStyle = theme === 'dark' ? 'rgba(16,18,22,.55)' : 'rgba(255,255,255,.6)';
+        ctx.strokeStyle = paint.hatchInk?.[theme] || (theme === 'dark' ? 'rgba(16,18,22,.55)' : 'rgba(255,255,255,.6)');
         ctx.lineWidth = 2;
         const b = state.box, x0 = b[0] * k + x, y0 = b[1] * k + y, x1 = b[2] * k + x, y1 = b[3] * k + y, h = y1 - y0;
         ctx.beginPath();
@@ -116,17 +117,24 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
         ctx.stroke();
       }
     } else {
-      for (const m of geo.municipalities) {
+      // States first (the open one at full strength while its municipalities download), then the loaded municipalities.
+      for (const state of Object.values(geo.states)) {
+        if (state.uf === uf && state.loaded) continue;
+        ctx.globalAlpha = uf && state.uf !== uf ? .13 : 1;
+        ctx.fillStyle = fill(stateResults[state.uf]);
+        ctx.fill(state.fill);
+      }
+      for (const m of uf ? geo.states[uf]?.municipalities || [] : geo.municipalities) {
         if (!visible(m)) continue;
         ctx.globalAlpha = emphasis(m);
         ctx.fillStyle = fill(results.get(m.id));
         ctx.fill(m.path);
       }
-      if (uf) {
+      if (uf && geo.states[uf]?.municipalBorders) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = colors.municipalityBorder;
         ctx.lineWidth = .5 / k;
-        ctx.stroke(geo.borders.municipality);
+        ctx.stroke(geo.states[uf].municipalBorders);
       }
     }
 
@@ -186,7 +194,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!uf) {
       CALLOUTS.forEach((code, i) => {
-        const center = geo.states[code].center, [tx, ty] = calloutPosition(i, size);
+        const center = geo.states[code].center, [tx, ty] = calloutPosition(i, size, calloutWidth);
         ctx.strokeStyle = colors.calloutLine;
         ctx.lineWidth = .7;
         ctx.beginPath();
@@ -227,7 +235,7 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
     return () => cancelAnimationFrame(frame.current);
   }, [size.width, size.height, place]);
 
-  useLayoutEffect(() => { draw(); }, [results, stateResults, zoneRows, selectedZone, hover, theme, unit, metric, flipped, paint]);
+  useLayoutEffect(() => { draw(); }, [geo, results, stateResults, zoneRows, selectedZone, hover, theme, unit, metric, flipped, paint]);
 
   const position = event => {
     const box = canvas.current.getBoundingClientRect();
@@ -244,9 +252,12 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
       if (zones) for (let i = 0; i < zones.paths.length; i++) {
         if (ctx.isPointInPath(zones.paths[i], x, y, 'evenodd')) return { uf, municipality, zoneIndex: i, zone: zones.numbers[i], sx, sy };
       }
-      const candidates = uf ? geo.states[uf].municipalities : geo.municipalities;
-      for (const m of candidates) {
+      if (uf) for (const m of geo.states[uf]?.municipalities || []) {
         if (inside(m.box, x, y) && ctx.isPointInPath(m.path, x, y)) return { uf: m.uf, municipality: m, sx, sy };
+      }
+      // Brazil by state (the light mesh); with a state open, a click on another state opens that state.
+      for (const state of Object.values(geo.states)) {
+        if (state.uf !== uf && inside(state.box, x, y) && ctx.isPointInPath(state.fill, x, y)) return { uf: state.uf, sx, sy };
       }
       return null;
     } finally {
@@ -304,8 +315,8 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
     if (!dragged) {
       const area = hit(event);
       if (area?.zone != null) onZone(area.zone);
-      else if (area && !uf) onState(area.uf);
-      else if (area) onMunicipality(area.municipality.id);
+      else if (area?.municipality) onMunicipality(area.municipality.id);
+      else if (area) onState(area.uf);
     }
     interaction.current = touches.current.size
       ? { ...interaction.current, dragging: true, previous: [...touches.current.values()][0] }
@@ -342,9 +353,11 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
 
   const hovered = hover && (hover.zone != null
     ? { name: zones.names[hover.zoneIndex], result: zoneRows[hover.zoneIndex] }
-    : byMunicipality ? { name: hover.municipality.name + (uf ? '' : ` (${hover.uf})`), result: results.get(hover.municipality.id) }
-    : { name: stateResults[hover.uf].name, result: stateResults[hover.uf] });
+    : hover.municipality ? { name: hover.municipality.name + (uf ? '' : ` (${hover.uf})`), result: results.get(hover.municipality.id) }
+    : { name: stateResults[hover.uf]?.name || hover.uf, result: stateResults[hover.uf] });
   const showShares = size.width >= MIN_WIDTH_FOR_SHARES;
+  const calloutBadges = CALLOUTS.some(code => paint.badge?.(stateResults[code]));
+  const calloutWidth = (showShares ? 62 : 34) + (calloutBadges ? 24 : 0);
   // Over a single state fill the label takes a contrasting ink; over many small fills it needs a halo.
   const floating = unit !== 'estados';
 
@@ -367,17 +380,17 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           onClick=${() => onState(state.uf)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
           onPointerEnter=${labelEnter(state.uf)} onPointerLeave=${() => setHover(null)}>
           <b>${state.uf}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
-          ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
+          ${paint.badge?.(result) && html`<small class="label-badge" title=${paint.badge(result)} aria-hidden="true">2T</small>`}
         </button>`;
       })}
       ${CALLOUTS.map((code, i) => {
-        const [left, top] = calloutPosition(i, size), result = stateResults[code], background = fill(result);
+        const [left, top] = calloutPosition(i, size, calloutWidth), result = stateResults[code], background = fill(result);
         return html`<button key=${code} class="state-callout"
           style=${{ left: left + 'px', top: top + 'px', background, color: paint.ink?.(result) || inkOn(background) }}
           onClick=${() => onState(code)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
           onPointerEnter=${labelEnter(code)} onPointerLeave=${() => setHover(null)}>
           <b>${code}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
-          ${paint.badge?.(result) && html`<small class="label-badge">${showShares ? paint.badge(result) : '2ºT'}</small>`}
+          ${paint.badge?.(result) && html`<small class="label-badge" title=${paint.badge(result)} aria-hidden="true">2T</small>`}
         </button>`;
       })}
     </div>`}

@@ -66,7 +66,7 @@ export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus
     <td class="num">${int(r.electorate)}</td>
   </tr>`;
   return html`<div class="table-tools">
-      <input type="search" placeholder=${showStatus ? 'Filtrar estado ou candidato' : 'Filtrar estado'} aria-label="Filtrar estado" value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
+      <input type="search" placeholder=${showStatus ? 'Estado ou candidato' : 'Filtrar estado'} aria-label=${showStatus ? 'Filtrar estado ou candidato' : 'Filtrar estado'} value=${query} onInput=${e => setQuery(e.currentTarget.value)}/>
       ${showStatus && html`<select aria-label="Filtrar por situação" value=${status} onChange=${e => setStatus(e.currentTarget.value)}>
         <option value="">Todas as situações</option><option value="decidido">${round > 1 ? 'Eleito' : 'Decidido no 1º turno'}</option><option value="segundo-turno">Vai ao 2º turno</option>
       </select>`}

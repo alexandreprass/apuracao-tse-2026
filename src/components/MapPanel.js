@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
 import { ElectionMap } from '../map/ElectionMap.js';
-import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginRamp, MARGIN_STEPS, partyFill, statusFill } from '../lib/color.js';
+import { COMPLETION_STEPS, completionColor, completionRamp, MAP_EMPTY, marginRamp, MARGIN_STEPS, mix, partyFill, statusFill } from '../lib/color.js';
 import { int, pct, titleCase } from '../lib/format.js';
 import { stateName } from '../data/states.js';
 import { Segmented } from './ui.js';
@@ -14,11 +14,12 @@ const RAMP_LABELS = ['<5', '5–15', '15–30', '>30'];
  * coloured by who leads and by how much, or by how much has been counted.
  */
 export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf,
-  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false }) {
+  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false, waiting = false }) {
   const [metric, setMetric] = useState(initialMetric);
   const touch = useMediaQuery('(pointer: coarse)');
   const verb = touch ? 'Toque' : 'Clique';
-  const municipality = ibge ? geo.byId.get(ibge) : null;
+  // Only a municipality with its shape (its state's mesh downloaded) can be framed on the map.
+  const municipality = ibge && geo.byId.get(ibge)?.path ? geo.byId.get(ibge) : null;
   const hasMunicipal = !!municipalities?.size;
   // Brasil is drawn by state; an open state by municipality.
   const effectiveUnit = uf ? 'municipios' : 'estados';
@@ -33,7 +34,20 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
 
   // The "situação" view only makes sense for whole races (states), not for municipalities.
   const statusMode = metric === 'situacao' && showStatus && !uf;
-  const paint = useMemo(() => ({
+  // 2º turno not started: runoff states hatched grey ("aguardando"), states decided in the 1º turno in their
+  // winner's colour at 35%, everything else grey ("sem apuração"). No numbers.
+  const waitingFill = row => (!row || row.empty || row.status === 'segundo-turno' ? MAP_EMPTY[theme] : mix(MAP_EMPTY[theme], statusFill(row, theme).fill, .35));
+  const paint = useMemo(() => waiting ? {
+    fill: waitingFill,
+    ink: () => null,
+    label: () => '',
+    hatch: row => row?.status === 'segundo-turno',
+    hatchInk: { dark: 'rgba(255,255,255,.3)', light: 'rgba(20,24,33,.3)' }, // grey hatch over the grey "aguardando"
+    badge: row => (row?.status === 'segundo-turno' ? 'aguardando o 2º turno' : null),
+    tooltip: row => !row || row.empty ? 'Sem apuração: o 2º turno ainda não começou'
+      : row.status === 'segundo-turno' ? `Aguardando o 2º turno: ${titleCase(row.leaderName)} (${row.leaderParty}) × ${titleCase(row.runnerUpName)} (${row.runnerUpParty})`
+      : `Eleito no 1º turno: ${titleCase(row.leaderName)} (${row.leaderParty})`,
+  } : ({
     fill: row => !row || row.empty ? MAP_EMPTY[theme]
       : metric === 'apurado' ? completionColor(row.completion, theme)
       : statusMode ? statusFill(row, theme).fill
@@ -56,7 +70,7 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
       if (showStatus && !uf && row.status === 'decidido') return `Eleito: ${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
       return `${titleCase(row.leaderName)} (${row.leaderParty}) · ${pct(row.leaderPct)}${stale}`;
     },
-  }), [theme, metric, verb, statusMode, showStatus, uf, emptyLabel, statusLabel]);
+  }), [theme, metric, verb, statusMode, showStatus, uf, emptyLabel, statusLabel, waiting]);
 
   const legend = useMemo(() => {
     const rows = uf ? [...results.values()] : effectiveUnit === 'estados' ? Object.values(states) : [...results.values()];
@@ -89,7 +103,7 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
   const controls = html`<${Segmented} label="Cor do mapa" value=${metric === 'situacao' && (!showStatus || uf) ? 'lider' : metric} onChange=${setMetric}
     options=${[['lider', 'Quem lidera'], ...(showStatus && !uf ? [['situacao', 'Situação']] : []), ['apurado', '% apurado']]}/>`;
   return html`<section class=${'card map-card' + (compact ? ' is-compact' : '')} aria-label=${`${title}. ${hint}`}>
-    ${compact ? html`<div class="map-controls map-overlay">${controls}</div>`
+    ${waiting ? null : compact ? html`<div class="map-controls map-overlay">${controls}</div>`
       : html`<header class="card-head">
       <div><h2>${title}</h2><p>${hint}</p></div>
       <div class="map-controls">${controls}</div>
@@ -100,7 +114,13 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
         onState=${onState} onMunicipality=${onMunicipality}/>
     </div>
     <div class="legend">
-      ${statusMode ? html`
+      ${waiting ? (() => {
+          const rows = Object.values(states), open = rows.filter(r => r?.status === 'segundo-turno').length, done = rows.filter(r => r?.status === 'decidido').length;
+          return open || done ? html`<span class="legend-side"><i class="swatch swatch-runoff"></i>aguardando o 2º turno · ${int(open)} ${open === 1 ? 'estado' : 'estados'}</span>
+            <span class="legend-side"><i class="swatch" style=${{ background: mix(MAP_EMPTY[theme], '#808080', .35) }}></i>eleito no 1º turno (cor do partido, clara) · ${int(done)} ${done === 1 ? 'estado' : 'estados'}</span>`
+            : html`<span class="legend-side"><i class="swatch" style=${{ background: MAP_EMPTY[theme] }}></i>sem apuração: o 2º turno ainda não começou</span>`;
+        })()
+      : statusMode ? html`
           <span class="legend-side legend-key">Cor do partido de quem venceu ou lidera.
             ${statusLegend.some(e => e.open) && html`<i class="swatch swatch-runoff"></i>hachura e selo “${statusLabel}”: ${statusLabel === '2º turno' ? 'disputa vai ao 2º turno' : 'em apuração'}`}</span>
           ${statusLegend.slice(0, 10).map(entry => html`<span class="legend-side" key=${entry.party}>

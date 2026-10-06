@@ -52,9 +52,10 @@ export function App() {
   const enabled = ENABLED_OFFICES.includes(route.office);
   const officeState = useOffice(route.round, enabled ? route.office : 'presidente');
   const needsMap = (route.page === 'resultados' && enabled) || !!searching;
-  const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
+  const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap, { uf: route.uf, places: !!searching });
   const presidents = useOffice(1, 'presidente');
-  const governors = useOffice(1, 'governador');
+  // Governor candidates feed the search only: no governor data on a president page until search opens (item 11).
+  const governors = useOffice(1, searching || route.office === 'governador' ? 'governador' : null);
 
   const title = route.page === 'resultados'
     ? `${OFFICES[route.office].label} · ${placeTitle(route, geo)} · ${ROUNDS[route.round].label}`

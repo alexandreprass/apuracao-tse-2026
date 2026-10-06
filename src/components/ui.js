@@ -164,7 +164,7 @@ export function Countdown({ target }) {
   if (ms <= 0) return html`<span class="countdown">Urnas fechadas — aguardando os primeiros boletins do TSE</span>`;
   const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24, m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
   // Seconds only distract days ahead: they appear in the last hour.
-  const parts = ms > 3600_000 ? [[d, 'dias'], [h, 'h'], [m, 'min']] : [[m, 'min'], [s, 's']];
+  const parts = ms > 3600_000 ? [[d, 'd'], [h, 'h'], [m, 'min']] : [[m, 'min'], [s, 's']];
   return html`<span class="countdown" role="timer" aria-label=${`Faltam ${d} dias, ${h} horas e ${m} minutos`}>
     ${parts.map(([v, u]) => html`<span key=${u}><b>${String(v).padStart(2, '0')}</b>${u}</span>`)}
   </span>`;

@@ -10,8 +10,8 @@ export const OFFICES = {
   presidente: { code: 1, label: 'Presidente', plural: 'Presidente', scope: 'br', federal: true, rounds: [1, 2] },
   governador: { code: 3, label: 'Governador', plural: 'Governadores', scope: 'uf', rounds: [1, 2] },
   senador: { code: 5, label: 'Senador', plural: 'Senado', scope: 'uf', rounds: [1] },
-  'deputado-federal': { code: 6, label: 'Deputado federal', plural: 'Dep. federais', scope: 'uf', rounds: [1], proportional: true },
-  'deputado-estadual': { code: 7, label: 'Deputado estadual', plural: 'Dep. estaduais', scope: 'uf', rounds: [1], proportional: true, dfCode: 8, dfLabel: 'Deputado distrital' },
+  'deputado-federal': { code: 6, label: 'Deputado federal', plural: 'Dep. federais', tab: 'Dep. Fed.', scope: 'uf', rounds: [1], proportional: true },
+  'deputado-estadual': { code: 7, label: 'Deputado estadual', plural: 'Dep. estaduais', tab: 'Dep. Est.', scope: 'uf', rounds: [1], proportional: true, dfCode: 8, dfLabel: 'Deputado distrital' },
 };
 
 /** TSE election codes per round: the presidential race is "federal", the others "estadual". */

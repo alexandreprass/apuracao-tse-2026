@@ -112,8 +112,9 @@ export function cameraFor(geo, uf, municipality, width, height) {
     const x=(focus[0]+focus[2])/2,y=(focus[1]+focus[3])/2;
     box=[x-radius,y-radius,x+radius,y+radius];
   } else if(uf&&!municipality) {
-    const margin=Math.max(box[2]-box[0],box[3]-box[1])*.08;
-    box=[box[0]-margin,box[1]-margin,box[2]+margin,box[3]+margin];
+    // An open state fills its area, with ~8px of margin on the tightest side.
+    const bx=box[2]-box[0],by=box[3]-box[1],k=Math.min((width-16)/bx,(height-16)/by);
+    return { k, x:width/2-(box[0]+box[2])/2*k, y:height/2-(box[1]+box[3])/2*k };
   }
   const padding=zones?0:municipality?.12:uf?0:.025;
   const bx=box[2]-box[0],by=box[3]-box[1],cx=(box[0]+box[2])/2,cy=(box[1]+box[3])/2;
@@ -121,4 +122,91 @@ export function cameraFor(geo, uf, municipality, width, height) {
   const k=Math.min(usableWidth/(bx*(1+padding*2)),usableHeight/(by*(1+padding*2)));
   const screenX=uf?width*.5:width*.44,screenY=height*.5;
   return { k, x:screenX-cx*k, y:screenY-cy*k };
+}
+
+// ---- Lazy mesh (public/data/geo, from scripts/geo-split.mjs): states first, municipalities per state on demand ----
+
+const decode = (topology, origin) => {
+  const { scale, translate } = topology.transform;
+  return topology.arcs.map(arc => {
+    let x = 0, y = 0;
+    return arc.map(([dx, dy]) => { x += dx; y += dy; return [(x * scale[0] + translate[0]) / 1000 - origin[0], -(y * scale[1] + translate[1]) / 1000 - origin[1]]; });
+  });
+};
+const ringPoints = (arcs, ring) => {
+  const points = [];
+  for (const arcId of ring) {
+    const p = arcId < 0 ? [...arcs[~arcId]].reverse() : arcs[arcId];
+    points.push(...p.slice(points.length ? 1 : 0));
+  }
+  return points;
+};
+const trace = (path, points) => { path.moveTo(...points[0]); for (const p of points.slice(1)) path.lineTo(...p); path.closePath(); };
+
+/** The states-only mesh: Brazil drawn by state, with no municipality until a state's file is added. */
+export function createStateGeography(mesh) {
+  const { scale, translate } = mesh.transform;
+  const box = emptyBox();
+  for (const arc of mesh.arcs) { let x = 0, y = 0; for (const [dx, dy] of arc) { x += dx; y += dy; extend(box, (x * scale[0] + translate[0]) / 1000, -(y * scale[1] + translate[1]) / 1000); } }
+  const origin = [box[0], box[1]];
+  const arcs = decode(mesh, origin);
+  const owners = arcs.map(() => []);
+  const states = {}, allBox = emptyBox();
+  for (const s of mesh.states) {
+    const state = states[s.uf] = { uf: s.uf, municipalities: [], loaded: false, box: [s.box[0] - origin[0], s.box[1] - origin[1], s.box[2] - origin[0], s.box[3] - origin[1]],
+      center: [s.center[0] - origin[0], s.center[1] - origin[1]], area: s.area, outline: new Path2D(), fill: new Path2D(), municipalBorders: null };
+    for (const ring of s.rings) {
+      trace(state.fill, ringPoints(arcs, ring));
+      for (const a of ring) owners[a < 0 ? ~a : a].push(s.uf);
+    }
+    extend(allBox, state.box[0], state.box[1]); extend(allBox, state.box[2], state.box[3]);
+  }
+  const borders = { state: new Path2D(), municipality: new Path2D(), coast: new Path2D() };
+  arcs.forEach((arc, i) => {
+    const draw = path => { path.moveTo(...arc[0]); for (const p of arc.slice(1)) path.lineTo(...p); };
+    draw(owners[i].length < 2 ? borders.coast : borders.state);
+    for (const uf of new Set(owners[i])) draw(states[uf].outline);
+  });
+  return snapshot({ origin, states, borders, box: allBox, places: null });
+}
+
+/** A new geography object with one more state's municipalities (paths, names, inner borders). */
+export function addMunicipalities(geo, uf, topology) {
+  const arcs = decode(topology, geo.origin);
+  const owners = arcs.map(() => 0);
+  const municipalities = topology.objects.municipios.geometries.map((geometry, index) => {
+    const path = new Path2D(), bounds = emptyBox();
+    const polygons = geometry.type === 'Polygon' ? [geometry.arcs] : geometry.arcs;
+    let area = 0, center = [0, 0], biggest = 0;
+    for (const polygon of polygons) for (const [r, ring] of polygon.entries()) {
+      for (const a of ring) owners[a < 0 ? ~a : a]++;
+      const points = ringPoints(arcs, ring);
+      trace(path, points);
+      for (const p of points) extend(bounds, ...p);
+      if (r === 0) {
+        let t = 0, cx = 0, cy = 0;
+        for (let i = 0, j = points.length - 1; i < points.length; j = i++) { const f = points[j][0] * points[i][1] - points[i][0] * points[j][1]; t += f; cx += (points[j][0] + points[i][0]) * f; cy += (points[j][1] + points[i][1]) * f; }
+        const a = Math.abs(t / 2); area += a;
+        if (a > biggest) { biggest = a; center = t ? [cx / (3 * t), cy / (3 * t)] : points[0]; }
+      }
+    }
+    const p = geometry.properties;
+    return { index, id: String(p.id), name: p.n, uf: p.uf, population: p.p, path, box: bounds, center, area };
+  });
+  const inner = new Path2D();
+  arcs.forEach((arc, i) => { if (owners[i] > 1) { inner.moveTo(...arc[0]); for (const q of arc.slice(1)) inner.lineTo(...q); } });
+  const states = { ...geo.states, [uf]: { ...geo.states[uf], municipalities, loaded: true, municipalBorders: inner } };
+  return snapshot({ ...geo, states });
+}
+
+/** Adds the light list of every municipality (id, name, state, population) for search and "Meu município". */
+export function addPlaces(geo, rows) {
+  return snapshot({ ...geo, places: rows.map(([id, name, uf, population]) => ({ id, name, uf, population })) });
+}
+
+function snapshot({ origin, states, borders, box, places }) {
+  const municipalities = Object.values(states).flatMap(s => s.municipalities);
+  const byId = new Map((places || []).map(m => [m.id, m]));
+  for (const m of municipalities) byId.set(m.id, m);
+  return { origin, states, borders, box, places, municipalities, byId, zonesFor: () => null, zoneMeta: {} };
 }

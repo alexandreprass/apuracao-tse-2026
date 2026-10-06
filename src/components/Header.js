@@ -17,9 +17,8 @@ export function TopBar({ route, theme, onToggleTheme, onSearch, onShare, status 
     <${OfficeTabs} route=${route}/>
     <nav class="round-tabs" aria-label="Turno">
       ${[1, 2].map(round => html`<a key=${round} href=${`#/${round}turno/${OFFICES[route.office].rounds.includes(round) ? route.office : 'presidente'}`}
-        aria-current=${inResults && route.round === round ? 'page' : undefined} title=${`${ROUNDS[round].label} · ${ROUNDS[round].date}`}>
-        ${ROUNDS[round].label}</a>`)}
-      <a href="#/comparar" class="round-compare" aria-current=${route.page === 'comparar' ? 'page' : undefined}>Comparar</a>
+        aria-current=${inResults && route.round === round ? 'page' : undefined} title=${`${ROUNDS[round].label} · ${ROUNDS[round].date}`}
+        aria-label=${ROUNDS[round].label}>${round}º<span class="round-word"> turno</span></a>`)}
     </nav>
     <div class="topbar-actions">
       <button class="search-trigger" onClick=${onSearch} aria-label="Buscar estado, município ou candidato" title="Buscar estado, município ou candidato (Ctrl K)" aria-keyshortcuts="Control+K /">
@@ -43,11 +42,13 @@ export function OfficeTabs({ route }) {
       const round = inRound ? route.round : 1;
       const href = `#/${round}turno/${key}${ENABLED_OFFICES.includes(key) ? keepUf() : ''}`;
       if (ENABLED_OFFICES.includes(key) && inRound) {
-        return html`<a key=${key} href=${href} aria-current=${route.office === key ? 'page' : undefined}>${OFFICES[key].plural}</a>`;
+        return html`<a key=${key} href=${href} aria-current=${route.office === key ? 'page' : undefined}
+          title=${OFFICES[key].tab ? OFFICES[key].plural : undefined}>${OFFICES[key].tab || OFFICES[key].plural}</a>`;
       }
+      // Not open yet (or no 2º turno): a plain tab at half opacity; the reason goes to the title and screen readers.
       const note = !inRound ? 'só 1º turno' : 'em breve';
-      return html`<a key=${key} class="is-soon" href=${href} aria-label=${`${OFFICES[key].plural}, ${note}`}
-        aria-current=${route.office === key && inRound ? 'page' : undefined}>${OFFICES[key].plural}<small>${note}</small></a>`;
+      return html`<a key=${key} class="is-soon" href=${href} aria-label=${`${OFFICES[key].plural}, ${note}`} title=${`${OFFICES[key].plural} · ${note}`}
+        aria-current=${route.office === key && inRound ? 'page' : undefined}>${OFFICES[key].tab || OFFICES[key].plural}</a>`;
     })}
   </nav>`;
 }
@@ -85,7 +86,7 @@ export function StatusBar({ feed, round }) {
 
   const stale = info.tone === 'is-stale';
   const toTable = () => document.getElementById('tabela-estados')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  return html`<div class=${'status-bar ' + info.tone} title=${info.detail || undefined}>
+  return html`<div class=${'status-bar ' + info.tone} title=${info.detail || info.state || undefined}>
     <span class="status-state">
       ${stale ? html`<${Icon} name="clock-alert" size=${16}/>` : html`<span class=${'dot ' + info.tone}></span>`}
       <span class="status-text">${data ? shortState(info, latestUpdated(data)) : info.state}</span>

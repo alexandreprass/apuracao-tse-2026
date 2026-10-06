@@ -25,7 +25,8 @@ export function useFeed(feed, events = ['data']) {
 export const officeFeed = (round, office) => getFeed(`office|${round}|${office}`,
   () => new Feed(previous => loadOffice(round, office, previous), { delay: data => pollDelay(data, round) }));
 
-export const useOffice = (round, office) => useFeed(officeFeed(round, office));
+/** One office's feed; a null office loads nothing (e.g. governors on the president page until search opens). */
+export const useOffice = (round, office) => useFeed(office ? officeFeed(round, office) : null);
 
 export const useProportional = (round, office, uf) => useFeed(uf ? getFeed(`prop|${round}|${office}|${uf}`,
   () => new Feed(previous => loadProportional(round, office, uf, previous), { delay: data => pollDelay(data, round) })) : null);

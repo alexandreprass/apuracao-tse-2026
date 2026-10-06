@@ -4,7 +4,7 @@ import { int, pct, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { Icon } from './Icon.js';
-import { ElectedBadge, StatusBadge } from './ui.js';
+import { ElectedBadge, Photo, StatusBadge } from './ui.js';
 
 /**
  * One-screen dashboard (layout-pr2.md): map column (one-line strip, map, legend) and a side panel
@@ -12,9 +12,9 @@ import { ElectedBadge, StatusBadge } from './ui.js';
  * panel does; on phones it stacks, with the scoreboard as the first tab and the top two stuck under the map.
  * `tabs`: [{ id, label, content }]. `drawer`: { title, content } shown over the panel (full screen on phones).
  */
-export function Dashboard({ title, strip, crumbs, map, scoreboard, extra, leaders, tabs, drawer, onCloseDrawer, footer }) {
+export function Dashboard({ title, strip, crumbs, map, scoreboard, extra, leaders, tabs, drawer, onCloseDrawer, footer, scoreLabel = 'Placar', className = '' }) {
   const wide = useMediaQuery('(min-width: 720px)');
-  const all = wide || !scoreboard ? tabs : [{ id: 'placar', label: 'Placar', content: html`${scoreboard}${extra}` }, ...tabs];
+  const all = wide || !scoreboard ? tabs : [{ id: 'placar', label: scoreLabel, content: html`${scoreboard}${extra}` }, ...tabs];
   const [active, setActive] = useState(all[0]?.id);
   const current = all.find(t => t.id === active) || all[0];
   useEffect(() => {
@@ -23,7 +23,7 @@ export function Dashboard({ title, strip, crumbs, map, scoreboard, extra, leader
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
   }, [drawer]);
-  return html`<div class="dash">
+  return html`<div class=${'dash' + (className ? ' ' + className : '')}>
     <h1 class="sr-only">${title}</h1>
     <section class="dash-map" aria-label="Mapa e apuração">
       ${strip && html`<div class="dash-strip">${strip}</div>`}
@@ -65,21 +65,39 @@ export function CountStrip({ result, actions }) {
   </dl>${actions && html`<span class="strip-actions">${actions}</span>`}`;
 }
 
-/** Scoreboard in thin rows: leader 48px (% in 20px), others 36px; party stripe, name · party, %, votes, bar. */
-export function Scoreboard({ result, round, show = 4, focus = null }) {
+/** Vice and coalition in one line (title of the row and its expandable detail). */
+export const candidateExtra = c => [c.vice && `Vice: ${titleCase(c.vice)}`, c.coalition && `Coligação: ${titleCase(c.coalition)}${c.composition ? ` (${c.composition})` : ''}`,
+  !c.coalition && c.composition && c.composition !== c.party && `Partidos: ${c.composition}`].filter(Boolean).join(' · ');
+
+/** "Ver mais 1 candidato" / "Ver mais 3 candidatos". */
+export const moreLabel = n => `Ver mais ${n} ${n === 1 ? 'candidato' : 'candidatos'}`;
+
+/**
+ * Scoreboard in thin rows: leader 48px (% in 20px), others 36px; 32px photo, party stripe, name · party, %, votes, bar.
+ * The name is a button that opens the vice and coalition in a line under the row (also in the row's title).
+ */
+export function Scoreboard({ result, round, office, uf = null, show = 4, focus = null }) {
   const list = result.candidates;
   // A candidate picked in the search is always on screen (opened list if needed).
   const [open, setOpen] = useState(() => list.findIndex(c => c.n === focus) >= show);
+  const [detail, setDetail] = useState(null);
   const visible = open ? list : list.slice(0, show);
   return html`<ol class="score">
-    ${visible.map((c, i) => html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '')} style=${{ '--party': partyColor(c.party) }}>
-      <span class="score-name"><b>${titleCase(c.name)}</b> <small>${c.party}</small>
-        ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}</span>
-      <span class="score-pct">${pct(c.pct)}</span>
-      <span class="score-votes">${int(c.votes)}</span>
-      <span class="score-bar"><i style=${{ width: Math.min(100, c.pct) + '%' }}></i></span>
-    </li>`)}
+    ${visible.map((c, i) => {
+      const extra = candidateExtra(c), expanded = detail === c.n;
+      return html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '')} style=${{ '--party': partyColor(c.party) }} title=${extra || undefined}>
+        <${Photo} candidate=${c} office=${office} uf=${uf} size=${32}/>
+        <span class="score-name">${extra
+          ? html`<button class="score-toggle" aria-expanded=${expanded} aria-controls=${'cand-extra-' + c.n} onClick=${() => setDetail(expanded ? null : c.n)}><b>${titleCase(c.name)}</b></button>`
+          : html`<b>${titleCase(c.name)}</b>`} <small>${c.party}</small>
+          ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}</span>
+        <span class="score-pct">${pct(c.pct)}</span>
+        <span class="score-votes">${int(c.votes)}</span>
+        <span class="score-bar"><i style=${{ width: Math.min(100, c.pct) + '%' }}></i></span>
+        ${extra && html`<span class="score-extra" id=${'cand-extra-' + c.n} hidden=${!expanded}>${c.n} · ${extra}</span>`}
+      </li>`;
+    })}
     ${list.length > show && html`<li class="score-more"><button class="link-button" onClick=${() => setOpen(!open)} aria-expanded=${open}>
-      ${open ? 'Mostrar só os primeiros' : `Ver os outros ${list.length - show} candidatos`}</button></li>`}
+      ${open ? 'Mostrar só os primeiros' : moreLabel(list.length - show)}</button></li>`}
   </ol>`;
 }

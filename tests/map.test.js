@@ -9,7 +9,7 @@ import { completionColor, marginColor, mix, MAP_BASE, partyColor } from '../src/
 // Node has no Canvas. Geometry tests only collect bounds and membership;
 // drawing and pointer selection are checked in the browser.
 globalThis.Path2D = class { moveTo() {} lineTo() {} closePath() {} addPath() {} };
-const atlas = JSON.parse(readFileSync(new URL('../public/data/brasil.topo.json', import.meta.url), 'utf8'));
+const atlas = JSON.parse(readFileSync(new URL('../geo/brasil.topo.json', import.meta.url), 'utf8'));
 const geo = createGeography(atlas, { m: {} });
 
 test('the atlas has 5,571 municipalities in 27 states', () => {

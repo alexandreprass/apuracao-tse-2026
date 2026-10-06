@@ -16,7 +16,7 @@ const pick = (result, numbers) => (numbers?.length
  * `copyRow`/`firstRow`: shipped 2º/1º turno rows of the city; `numbers`: the finalists.
  * Same rules as the national numbers: live first, else the shipped copy; the last good boletim stays, flagged as stale.
  */
-export function mineRow({ published, live, copyRow, firstRow, numbers }) {
+export function mineRow({ published, live, copyRow, firstRow, numbers, loading = false }) {
   if (published) {
     const liveResult = live?.result;
     const result = liveResult || copyRow;
@@ -24,7 +24,9 @@ export function mineRow({ published, live, copyRow, firstRow, numbers }) {
       return { phase: liveResult ? 'live' : 'copy', candidates: pick(result, numbers), apurado: result.sections?.pct || 0,
         stale: !!(liveResult && live.liveError), updated: result.updated || null };
     }
-    return { phase: live?.status === 'error' ? 'error' : 'not-published', candidates: [] };
+    return { phase: loading ? 'loading' : live?.status === 'error' ? 'error' : 'not-published', candidates: [] };
   }
-  return firstRow ? { phase: 'first', candidates: pick(firstRow, numbers), apurado: firstRow.sections?.pct ?? null } : { phase: 'waiting', candidates: [] };
+  // Still reading the files: "carregando", never "aguardando o TSE" for a result that is on its way.
+  return firstRow ? { phase: 'first', candidates: pick(firstRow, numbers), apurado: firstRow.sections?.pct ?? null }
+    : { phase: loading ? 'loading' : 'waiting', candidates: [] };
 }
