@@ -8,6 +8,7 @@ import { stateName, UFS } from '../data/states.js';
 import { loadIndex, bundleUrl } from '../data/source.js';
 import { useAsync, useProportional } from '../hooks/useData.js';
 import { MapPanel } from '../components/MapPanel.js';
+import { Icon } from '../components/Icon.js';
 import { CountStrip, Dashboard, Scoreboard } from '../components/Dashboard.js';
 import { Loading, Metrics, Notice, PartyBars } from '../components/ui.js';
 import { Breadcrumb } from '../components/Place.js';
@@ -42,6 +43,7 @@ function officeLabel(office, uf) {
 
 /** Brazil overview: party seats on the left, elected candidates on the right. */
 function Overview({ route, geo, theme, index, office }) {
+  const [expandedUf, setExpandedUf] = useState(null);
   const seats = index?.offices?.[office]?.seats || {};
   const tally = seatsByParty(seats);
   const states = useMemo(() => Object.fromEntries(UFS.map(uf => [uf, seatMapRow(seats[uf], uf)])), [seats]);
@@ -78,13 +80,25 @@ function Overview({ route, geo, theme, index, office }) {
   const scoreboard = !results.value
     ? html`<${Loading} text="Carregando candidatos…"/>`
     : html`<div class="score-card">
+      <p class="muted small proportional-map-hint">OU CLIQUE NO MAPA PARA ABRIR OS DETALHES POR MUNICÍPIO</p>
       ${UFS.filter(uf => byUf[uf]?.candidates?.length).map(uf => {
         const result = byUf[uf];
         const elected = result.candidates.filter(c => c.kind === 'eleito');
         const candidates = elected.length ? elected : result.candidates.slice(0, 5);
+        const isExpanded = expandedUf === uf;
         return html`<section class="uf-block" key=${uf}>
-          <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</a>
-          <${Scoreboard} result=${{ ...result, candidates }} round=${1} office=${office} uf=${uf} show=${candidates.length}/>
+          <div class="uf-block-head">
+            <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</a>
+            <button class="uf-block-toggle" type="button" aria-expanded=${isExpanded}
+              aria-label=${isExpanded ? `Fechar candidatos de ${stateName(uf)}` : `Abrir candidatos de ${stateName(uf)}`}
+              aria-controls=${`uf-candidates-${uf}`}
+              onClick=${() => setExpandedUf(isExpanded ? null : uf)}>
+              <${Icon} name=${isExpanded ? 'up' : 'down'} size=${16}/>
+            </button>
+          </div>
+          ${isExpanded && html`<div id=${`uf-candidates-${uf}`}>
+            <${Scoreboard} result=${{ ...result, candidates }} round=${1} office=${office} uf=${uf} show=${candidates.length}/>
+          </div>`}
         </section>`;
       })}
     </div>`;
