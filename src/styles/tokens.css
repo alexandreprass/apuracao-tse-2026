@@ -1,0 +1,89 @@
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/geist.woff2') format('woff2');
+}
+
+/*
+ * Neutrals carry the interface; blue and red are reserved for the two
+ * candidacies, so no control or decoration borrows a party colour.
+ * --bg is duplicated in src/map/mapTheme.js for the canvas.
+ */
+:root {
+  --font: Geist, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-md: 0.875rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-score: 2.25rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 12px;
+
+  --topbar-height: 56px;
+  --panel-width: 400px;
+  --insights-width: 360px;
+  --sheet-peek: 60px;
+
+  --z-map-overlay: 1;
+  --z-tooltip: 2;
+  --z-sticky: 10;
+  --z-backdrop: 20;
+  --z-sheet: 21;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 160ms;
+
+  --blue: #4162e2;
+  --red: #ee2d35;
+}
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101216;
+  --surface: oklch(0.21 0.007 262);
+  --sunken: oklch(0.235 0.008 262);
+  --line: oklch(0.28 0.008 262);
+  --line-strong: oklch(0.4 0.01 262);
+  --ink: oklch(0.96 0.003 262);
+  --ink-2: oklch(0.8 0.008 262);
+  --ink-3: oklch(0.7 0.01 262);
+  --blue-text: oklch(0.76 0.12 268);
+  --red-text: oklch(0.74 0.15 22);
+  --other: oklch(0.36 0.008 262);
+  --backdrop: oklch(0 0 0 / 0.6);
+  --shadow: 0 16px 48px oklch(0 0 0 / 0.5);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: oklch(1 0 0);
+  --sunken: oklch(0.94 0.005 262);
+  --line: oklch(0.89 0.006 262);
+  --line-strong: oklch(0.76 0.008 262);
+  --ink: oklch(0.21 0.015 262);
+  --ink-2: oklch(0.38 0.015 262);
+  --ink-3: oklch(0.48 0.014 262);
+  --blue-text: oklch(0.44 0.19 268);
+  --red-text: oklch(0.49 0.2 26);
+  --other: oklch(0.84 0.006 262);
+  --backdrop: oklch(0.2 0.02 262 / 0.35);
+  --shadow: 0 16px 48px oklch(0.2 0.02 262 / 0.18);
+}
+
+.tone-blue { --tone: var(--blue); --tone-text: var(--blue-text); }
+.tone-red { --tone: var(--red); --tone-text: var(--red-text); }

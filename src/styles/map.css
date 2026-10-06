@@ -1,0 +1,158 @@
+/* The frame stays square: the national camera and the coastal callouts are laid out for it. */
+.map-frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.map-frame canvas {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.map-frame canvas.dragging {
+  cursor: grabbing;
+}
+
+.state-labels {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-map-overlay);
+  pointer-events: none;
+}
+
+.state-label,
+.state-callout {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}
+
+.state-label b,
+.state-callout b {
+  font-weight: 600;
+}
+
+.state-label span,
+.state-callout span {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.state-label {
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+/* Over many small fills (municipalities, bubbles) no single ink works: use the page ink with a halo. */
+.state-label.is-floating {
+  color: var(--ink);
+  text-shadow: 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg);
+}
+
+.state-callout {
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 34px;
+  height: 20px;
+  padding-inline: 6px;
+  border-radius: 3px;
+}
+
+.state-label:hover b,
+.state-callout:hover b {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: var(--z-map-overlay);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.zoom-controls button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.zoom-controls button + button {
+  border-top: 1px solid var(--line);
+}
+
+.zoom-controls button:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+
+.zoom-controls button:focus-visible {
+  outline-offset: -2px;
+}
+
+.map-tooltip {
+  position: absolute;
+  z-index: var(--z-tooltip);
+  max-width: 190px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-sm);
+  pointer-events: none;
+}
+
+.map-tooltip strong {
+  display: block;
+  font-weight: 600;
+}
+
+.map-tooltip span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 999px) {
+  /* Let a vertical swipe scroll the page; pinch and horizontal drags still reach the map. */
+  .map-frame canvas {
+    touch-action: pan-y;
+  }
+}
+
+@media (max-width: 520px) {
+  .state-label,
+  .state-callout {
+    font-size: var(--text-xs);
+  }
+
+  .state-callout {
+    min-width: 28px;
+    padding-inline: 4px;
+  }
+}

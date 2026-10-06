@@ -1,0 +1,26 @@
+{
+  "name": "open-apuracao-brazil",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Painel interativo de apuração eleitoral do Brasil por estado, município e zona, com dados simulados.",
+  "license": "MIT",
+  "author": "Bruno Pinheiro",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bpinheiroms/open-apuracao-brazil.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "htm": "^3.1.1",
+    "preact": "^10.27.2"
+  },
+  "devDependencies": {
+    "vite": "^7.1.9"
+  }
+}

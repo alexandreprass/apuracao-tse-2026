@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101216" />
+    <title>Apuração 2026 · dados do TSE</title>
+    <meta name="description" content="Mapa da apuração de 2026 com boletins oficiais do TSE. Presidente por município; demais cargos por estado." />
+    <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      // Apply the saved or system theme before first paint (mirrors src/hooks/useTheme.js).
+      (function () {
+        var theme = null;
+        try { theme = localStorage.getItem('apuracao:tema'); } catch (error) {}
+        if (theme !== 'light' && theme !== 'dark') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"><p class="boot-loading">Carregando o mapa…</p></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
