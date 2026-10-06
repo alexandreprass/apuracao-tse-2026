@@ -17,7 +17,7 @@ export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
       </ol>
     </nav>
     <div class="place-state-actions">
-      ${uf && html`<a class="button is-small back-to-brazil" href=${base}>Voltar</a>`}
+      ${uf && html`<button type="button" class="button is-small back-to-brazil" onClick=${() => route.go({ uf: null, ibge: null })}>Voltar</button>`}
       <label class="state-picker">
         <span class="sr-only">Escolher estado</span>
         <select value=${uf || ''} onChange=${e => route.go({ uf: e.currentTarget.value || null, ibge: null })}>
@@ -27,6 +27,21 @@ export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
         </select>
       </label>
     </div>
+  </div>`;
+}
+
+/** Quick links to other offices while keeping the currently selected municipality open. */
+export function MunicipalityOfficeLinks({ route }) {
+  if (!route.ibge || !route.uf) return null;
+  const offices = Object.entries(OFFICES).filter(([key]) => key !== route.office);
+  return html`<div class="municipality-office-switch">
+    <span>Ver também nesse município</span>
+    <nav aria-label="Outros cargos neste município">
+      ${offices.map(([key, office]) => html`<button type="button" key=${key}
+        onClick=${() => route.go({ round: office.rounds.includes(route.round) ? route.round : 1, office: key, uf: route.uf, ibge: route.ibge })}>
+        ${office.tab || office.label}
+      </button>`)}
+    </nav>
   </div>`;
 }
 

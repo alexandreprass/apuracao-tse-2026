@@ -35,12 +35,12 @@ export function TopBar({ route, theme, onToggleTheme, onSearch, onShare, status 
 
 export function OfficeTabs({ route }) {
   // The five offices stay in the bar on both rounds, so its shape does not jump between pages.
-  const keepUf = () => (route.uf && route.uf !== 'ZZ' ? '/' + route.uf : '');
+  const keepPlace = () => (route.uf && route.uf !== 'ZZ' ? '/' + route.uf + (route.ibge ? '/' + route.ibge : '') : '');
   return html`<nav class="office-tabs" aria-label="Cargo">
     ${Object.keys(OFFICES).map(key => {
       const inRound = OFFICES[key].rounds.includes(route.round);
       const round = inRound ? route.round : 1;
-      const href = `#/${round}turno/${key}${ENABLED_OFFICES.includes(key) ? keepUf() : ''}`;
+      const href = `#/${round}turno/${key}${ENABLED_OFFICES.includes(key) ? keepPlace() : ''}`;
       if (ENABLED_OFFICES.includes(key) && inRound) {
         return html`<a key=${key} href=${href} aria-current=${route.office === key ? 'page' : undefined}
           title=${OFFICES[key].tab ? OFFICES[key].plural : undefined}>${OFFICES[key].tab || OFFICES[key].plural}</a>`;

@@ -131,6 +131,9 @@ select, input[type='search'] {
 .badge.is-subjudice { background: color-mix(in oklch, #c2255c 14%, transparent); color: light-dark(#9c1c4a, #ffa8c5); border-color: color-mix(in oklch, #c2255c 45%, transparent); }
 .badge.is-pending { background: var(--sunken); color: var(--ink-2); }
 
+/* Election-status badges in proportional candidate lists take half the usual visual space. */
+.proportional-candidates .badge { padding: 0 4px; transform: scale(.5); transform-origin: left center; }
+
 .metrics { display: grid; gap: var(--space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 640px) { .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .metric { padding: var(--space-3); border-radius: var(--radius); background: var(--sunken); display: flex; flex-direction: column; gap: 2px; min-width: 0; }

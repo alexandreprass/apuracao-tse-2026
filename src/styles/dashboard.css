@@ -133,6 +133,11 @@ main:has(> .dash) > .site-footer { display: none; }
 .score-card { display: grid; gap: var(--space-2); }
 .score-card.is-stale { opacity: 1; }
 .score-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.municipality-office-switch { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.municipality-office-switch > span { color: var(--ink-3); font-size: var(--text-xs); }
+.municipality-office-switch nav { display: flex; flex-wrap: wrap; column-gap: var(--space-3); row-gap: 2px; }
+.municipality-office-switch button { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--text-xs); cursor: pointer; }
+.municipality-office-switch button:hover { text-decoration: underline; text-underline-offset: 2px; }
 .score { display: grid; }
 .score-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto auto; grid-template-rows: auto 4px auto; column-gap: var(--space-2); align-items: center;
   min-height: 44px; height: auto; padding: 6px 0 6px var(--space-3); position: relative; scroll-margin: var(--space-4); }

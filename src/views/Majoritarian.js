@@ -9,13 +9,12 @@ import { comebackEstimate } from '../data/estimate.js';
 import { readTrend, recordTrend } from '../data/trend.js';
 import { noBoletimNotice } from '../data/status.js';
 import { useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useData.js';
-import { useMyMunicipality } from '../hooks/useMyMunicipality.js';
 import { Icon } from '../components/Icon.js';
 import { MyMunicipality } from '../components/MyMunicipality.js';
 import { Countdown, Loading, Metrics, Notice, PartyBars, Photo, Section, StaleTag } from '../components/ui.js';
 import { MapPanel } from '../components/MapPanel.js';
 import { MunicipalitiesTable, RaceBadge, StatesTable } from '../components/Tables.js';
-import { Breadcrumb, placeTitle } from '../components/Place.js';
+import { Breadcrumb, MunicipalityOfficeLinks, placeTitle } from '../components/Place.js';
 import { TrendChart } from '../components/TrendChart.js';
 import { candidateExtra, CountStrip, Dashboard, Scoreboard } from '../components/Dashboard.js';
 import { SiteFooter } from '../components/Header.js';
@@ -238,7 +237,6 @@ function NoRunoff({ office, uf, first }) {
 export function MajoritarianView({ route, geo, theme, office: officeState, onChooseMunicipality }) {
   const { round, office, uf, ibge } = route;
   const federal = !!OFFICES[office].federal;
-  const [myMunicipality, setMyMunicipality] = useMyMunicipality();
   const [drawer, setDrawer] = useState(null); // municípios, detalhes or regiões, over the panel
   useEffect(() => setDrawer(null), [office, round, uf, ibge]);
   const data = officeState.data;
@@ -298,7 +296,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
     onState=${onState} onMunicipality=${onMunicipality} title=${mapUf ? `Mapa de ${stateName(mapUf)}` : 'Mapa do Brasil'}
     nameOf=${row => `${titleCase(row.leaderName)} (${row.leaderParty})`}/>`;
 
-  const scoreboard = !result
+  const resultScoreboard = !result
     ? (ibge && !live.data && live.feed ? html`<${Loading} text="Buscando o resultado do município no TSE…"/>`
       : liveError ? html`<${Notice} tone="warning" title="Não foi possível consultar o TSE agora">${liveError.message} O site continua tentando.</${Notice}>`
       : html`<${Notice} title="Sem resultado para este lugar">O TSE não publicou resultado de ${OFFICES[office].label.toLowerCase()} aqui${round === 2 ? ' no 2º turno' : ''}.</${Notice}>`)
@@ -308,9 +306,6 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
           ${scopeStale && html`<${StaleTag} updated=${result.updated} title="O TSE não respondeu na última consulta; mostrando o último boletim recebido"/>`}
           ${muniStale && html`<${StaleTag} updated=${result.updated} text=${`Cópia das ${result.updated?.slice(11, 16) || '—'}: o TSE não respondeu agora`}/>`}
           ${!federal && !ibge && !electedCandidates(result).length && html`<${RaceBadge} result=${result} round=${round}/>`}
-          ${ibge && (myMunicipality === ibge
-            ? html`<button class="button is-small is-on" aria-pressed="true" onClick=${() => setMyMunicipality(null)}><${Icon} name="star" size=${14}/> Meu município</button>`
-            : html`<button class="button is-small" aria-pressed="false" onClick=${() => setMyMunicipality(ibge)}><${Icon} name="star" size=${14}/> Marcar como meu município</button>`)}
         </div>
         <${Scoreboard} result=${result} round=${round} office=${office} uf=${federal ? null : uf} focus=${route.focus}/>
         ${(() => {
@@ -319,6 +314,7 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
         })()}
         ${!ibge && (federal ? !uf : true) && html`<${RaceNote} result=${result} round=${round} office=${office} uf=${uf}/>`}
       </div>`;
+  const scoreboard = html`${ibge && html`<${MunicipalityOfficeLinks} route=${route}/>`}${resultScoreboard}`;
   const extra = round === 2 && result && !electedCandidates(result).length && html`<${Comeback} result=${result}/>`;
 
   const exterior = federal && data.zz && html`<a class="exterior-line" href=${`#/${round}turno/${office}/ZZ`}>
