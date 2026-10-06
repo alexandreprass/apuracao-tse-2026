@@ -81,7 +81,7 @@ function Overview({ route, geo, theme, index, office }) {
         const isExpanded = expandedUf === uf;
         return html`<section class="uf-block" key=${uf}>
           <div class="uf-block-head">
-            <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</a>
+            <a class="uf-block-title" href=${`#/1turno/${office}/${uf}`}><img class="state-flag" src=${`flags/${uf.toLowerCase()}.svg`} alt="" aria-hidden="true" loading="lazy"/><span>${uf} · ${stateName(uf)} · ${elected.length || candidates.length}</span></a>
             <button class="uf-block-toggle" type="button" aria-expanded=${isExpanded}
               aria-label=${isExpanded ? `Fechar candidatos de ${stateName(uf)}` : `Abrir candidatos de ${stateName(uf)}`}
               aria-controls=${`uf-candidates-${uf}`}
