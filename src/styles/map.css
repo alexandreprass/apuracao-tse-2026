@@ -44,7 +44,7 @@
 .state-label span,
 .state-callout span {
   font-weight: 500;
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .state-label {

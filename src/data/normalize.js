@@ -32,12 +32,17 @@ export function normalizeResult(raw, { compact = false } = {}) {
   const s = raw.s || {}, e = raw.e || {}, v = raw.v || {};
   const candidates = [];
   const parties = [];
+  // Federations (cargo "fed") count as one party for seats; each party points at its own with "nfed".
+  const federations = (office.fed || []).map(f => ({ number: f.n, acronym: f.sg, name: f.nm, parties: f.npar || [] }));
   for (const group of office.agr || []) {
     const coalition = group.tp === 'c' ? group.nm : '';
     for (const party of group.par || []) {
-      parties.push({ party: party.sg, number: party.n, votes: int(party.tvtn), legend: int(party.tvtl), name: party.nm });
+      const entry = { party: party.sg, number: party.n, votes: int(party.tvtn), legend: int(party.tvtl), name: party.nm };
+      if (party.nfed) entry.fed = party.nfed;
+      parties.push(entry);
       for (const c of party.cand || []) {
-        const elected = c.e === 's';
+        // "e" is "s" for the elected and also for the two runoff finalists, so "elected" follows the status text.
+        const kind = statusKind(c.st, c.e === 's' && !/turno/i.test(c.st || ''));
         const candidate = {
           n: c.n,
           name: c.nmu || c.nm,
@@ -45,8 +50,8 @@ export function normalizeResult(raw, { compact = false } = {}) {
           votes: int(c.vap),
           pct: num(c.pvapn ?? c.pvap),
           status: c.st || '',
-          kind: statusKind(c.st, elected),
-          elected,
+          kind,
+          elected: kind === 'eleito',
           sq: c.sqcand,
         };
         if (c.dvt && c.dvt !== 'Válido') candidate.validity = c.dvt;
@@ -85,7 +90,11 @@ export function normalizeResult(raw, { compact = false } = {}) {
     abstention: int(e.a),
     abstentionPct: num(e.pan ?? e.pa),
     totalVotes: int(v.tv),
+    // "vv" are the valid votes; "vvc" adds the votes annulled sub judice ("vansj"), which still count
+    // for the candidates' percentages while the court decides. The TSE's own percentages use "vvc".
     valid: int(v.vv),
+    validComputed: int(v.vvc ?? v.vv),
+    subJudice: int(v.vansj ?? 0),
     validPct: num(v.pvvcn ?? v.pvvc),
     blank: int(v.vb),
     blankPct: num(v.pvbn ?? v.pvb),
@@ -94,7 +103,8 @@ export function normalizeResult(raw, { compact = false } = {}) {
     annulled: int(v.van),
     legend: int(v.vl ?? 0),
     candidates,
-    parties: compact ? parties.filter(p => p.votes > 0).map(({ party, votes, legend }) => ({ party, votes, legend })) : parties,
+    parties: compact ? parties.filter(p => p.votes > 0).map(({ party, votes, legend, fed }) => (fed ? { party, votes, legend, fed } : { party, votes, legend })) : parties,
+    federations,
   };
 }
 

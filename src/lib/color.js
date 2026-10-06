@@ -52,7 +52,7 @@ export const MAP_EMPTY = { dark: '#272a30', light: '#d9dce3' };
 /** Lead over the runner-up (share of valid votes) where the colour steps up. */
 export const MARGIN_STEPS = [.05, .15, .3];
 // Even the closest races stay clearly visible on the map background in both themes.
-const STRENGTH = { dark: [.6, .74, .87, 1], light: [.55, .7, .85, 1] };
+const STRENGTH = { dark: [.45, .64, .82, 1], light: [.55, .7, .85, 1] };
 const cache = new Map();
 
 export function marginColor(color, margin, theme = 'dark') {

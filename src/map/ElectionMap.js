@@ -8,7 +8,7 @@ import { MAP_THEMES, inkOn } from './mapTheme.js';
 // Coastal states too small to label in place: listed beside the map with a leader line.
 const CALLOUTS = ['RN', 'PB', 'PE', 'AL', 'SE', 'ES', 'RJ'];
 const CALLOUT_ROW = 22;
-const LABEL_NUDGE = { DF: [3, -3], GO: [-7, 5] };
+const LABEL_NUDGE = { DF: [14, -10], GO: [-7, 5] };
 // On small maps these labels collide with their neighbours, so they move slightly apart.
 const NARROW_NUDGE = { DF: [6, -6], GO: [-9, 7], CE: [2, -4], PI: [-4, 6], MA: [-6, 0], TO: [-2, 4] };
 const NARROW_WIDTH = 440;
@@ -76,6 +76,20 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
       for (const state of Object.values(geo.states)) {
         ctx.fillStyle = fill(stateResults[state.uf]);
         ctx.fill(state.fill);
+      }
+      // A state showing its last good result (TSE did not answer) keeps its colour under a diagonal hatch.
+      for (const state of Object.values(geo.states)) {
+        if (!stateResults[state.uf]?.stale) continue;
+        ctx.save();
+        ctx.clip(state.fill);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.strokeStyle = theme === 'dark' ? 'rgba(16,18,22,.55)' : 'rgba(255,255,255,.6)';
+        ctx.lineWidth = 2;
+        const b = state.box, x0 = b[0] * k + x, y0 = b[1] * k + y, x1 = b[2] * k + x, y1 = b[3] * k + y, h = y1 - y0;
+        ctx.beginPath();
+        for (let sx = x0 - h; sx < x1; sx += 6) { ctx.moveTo(sx, y0); ctx.lineTo(sx + h, y1); }
+        ctx.stroke();
+        ctx.restore();
       }
     } else if (bubbles) {
       ctx.fillStyle = MAP_EMPTY[theme];
@@ -312,6 +326,12 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
   }, [size, uf, municipality?.id]);
 
   const cam = view || cameraFor(geo, uf, municipality, size.width, size.height);
+  // Hovering a state's label (which sits above the canvas) shows the same tooltip as its shape.
+  const labelEnter = code => event => {
+    if (event.pointerType === 'touch') return;
+    const el = event.currentTarget;
+    setHover({ uf: code, sx: el.offsetLeft + el.offsetWidth / 2, sy: el.offsetTop });
+  };
   const accessibleName = municipality
     ? `Mapa de ${municipality.name}${zones ? ', dividido em zonas eleitorais' : ''}`
     : uf ? `Mapa dos municípios de ${stateResults[uf].name}` : 'Mapa do Brasil por estado';
@@ -340,21 +360,23 @@ export function ElectionMap({ geo, results, stateResults, uf, municipality, zone
           color: floating ? null : inkOn(fill(result)),
         };
         return html`<button key=${state.uf} class=${'state-label' + (floating ? ' is-floating' : '')} style=${style}
-          onClick=${() => onState(state.uf)} aria-label=${`Abrir ${result.name}`}>
-          <b>${state.uf}</b>${showShares && html`<span>${labelValue(result)}</span>`}
+          onClick=${() => onState(state.uf)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
+          onPointerEnter=${labelEnter(state.uf)} onPointerLeave=${() => setHover(null)}>
+          <b>${state.uf}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
         </button>`;
       })}
       ${CALLOUTS.map((code, i) => {
         const [left, top] = calloutPosition(i, size), result = stateResults[code], background = fill(result);
         return html`<button key=${code} class="state-callout"
           style=${{ left: left + 'px', top: top + 'px', background, color: inkOn(background) }}
-          onClick=${() => onState(code)} aria-label=${`Abrir ${result.name}`}>
-          <b>${code}</b>${showShares && html`<span>${labelValue(result)}</span>`}
+          onClick=${() => onState(code)} aria-label=${`Abrir ${result.name}: ${paint.tooltip(result)}`}
+          onPointerEnter=${labelEnter(code)} onPointerLeave=${() => setHover(null)}>
+          <b>${code}</b>${showShares && html`<span>${labelValue(result)}${result.stale ? ' ⏱' : ''}</span>`}
         </button>`;
       })}
     </div>`}
 
-    ${(uf || size.width > 500) && html`<div class="zoom-controls" role="group" aria-label="Zoom do mapa">
+    ${html`<div class="zoom-controls" role="group" aria-label="Zoom do mapa">
       <button onClick=${() => zoom(ZOOM_STEP)} aria-label="Aproximar o mapa"><${Icon} name="plus" size=${16}/></button>
       <button onClick=${() => zoom(1 / ZOOM_STEP)} aria-label="Afastar o mapa"><${Icon} name="minus" size=${16}/></button>
       <button onClick=${recenter} aria-label="Centralizar o mapa"><${Icon} name="recenter" size=${16}/></button>

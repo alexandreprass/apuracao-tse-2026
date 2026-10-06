@@ -13,7 +13,7 @@ export const MAP_THEMES = {
   },
   light: {
     background: '#f6f7f9',
-    municipalityBorder: 'rgba(246,247,249,.5)',
+    municipalityBorder: 'rgba(246,247,249,.75)',
     coast: 'rgba(20,24,33,.16)',
     stateOutline: 'rgba(20,24,33,.6)',
     focus: '#141821',
@@ -25,11 +25,14 @@ export const MAP_THEMES = {
 
 const INK_ON_LIGHT = '#141821';
 const INK_ON_DARK = '#ffffff';
+const INK_LUMINANCE = 0.0101; // relative luminance of #141821
 
 /** Text colour that stays legible on top of a `#rrggbb` map fill. */
 export function inkOn(hex) {
   const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
   const luminance = .2126 * r + .7152 * g + .0722 * b;
-  return luminance > .3 ? INK_ON_LIGHT : INK_ON_DARK;
+  // Pick whichever ink has the higher WCAG contrast on this fill (a fixed cut-off failed in the light theme).
+  const ratio = (a, c) => (Math.max(a, c) + .05) / (Math.min(a, c) + .05);
+  return ratio(luminance, 1) >= ratio(luminance, INK_LUMINANCE) ? INK_ON_DARK : INK_ON_LIGHT;
 }

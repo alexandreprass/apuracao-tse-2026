@@ -1,7 +1,9 @@
 import { html } from '../lib/html.js';
 import { ENABLED_OFFICES, OFFICES, ROUNDS, TSE_SITE } from '../config.js';
-import { brasiliaTime } from '../lib/format.js';
-import { isFinished } from '../hooks/useData.js';
+import { brasiliaStamp, brasiliaTime } from '../lib/format.js';
+import { isFinished, useFeed } from '../hooks/useData.js';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { announcement, statusInfo } from '../data/status.js';
 import { Icon } from './Icon.js';
 
 export function TopBar({ route, theme, onToggleTheme, onSearch, onShare }) {
@@ -19,7 +21,7 @@ export function TopBar({ route, theme, onToggleTheme, onSearch, onShare }) {
       <a href="#/comparar" aria-current=${route.page === 'comparar' ? 'page' : undefined}>Comparar</a>
     </nav>
     <div class="topbar-actions">
-      <button class="search-trigger" onClick=${onSearch} aria-label="Buscar candidato, município ou estado" aria-keyshortcuts="/">
+      <button class="search-trigger" onClick=${onSearch} aria-label="Buscar" title="Buscar candidato, município ou estado" aria-keyshortcuts="/">
         <${Icon} name="search" size=${16}/><span>Buscar</span><kbd>/</kbd>
       </button>
       <button class="icon-button" onClick=${onShare} aria-label="Compartilhar este resultado" title="Compartilhar"><${Icon} name="share"/></button>
@@ -32,17 +34,24 @@ export function TopBar({ route, theme, onToggleTheme, onSearch, onShare }) {
 
 export function OfficeTabs({ route }) {
   if (route.page !== 'resultados') return null;
-  const keys = Object.keys(OFFICES).filter(key => OFFICES[key].rounds.includes(route.round));
+  // The five offices stay in the bar on both rounds, so its shape does not jump between pages.
   const keepUf = () => (route.uf && route.uf !== 'ZZ' ? '/' + route.uf : '');
   return html`<nav class="office-tabs" aria-label="Cargo">
-    ${keys.map(key => ENABLED_OFFICES.includes(key)
-      ? html`<a key=${key} href=${`#/${route.round}turno/${key}${keepUf(key)}`}
-          aria-current=${route.office === key ? 'page' : undefined}>${OFFICES[key].plural}</a>`
-      : html`<span key=${key} class="is-soon" aria-disabled="true" title="Disponível na próxima etapa">${OFFICES[key].plural}<small>em breve</small></span>`)}
+    ${Object.keys(OFFICES).map(key => {
+      const inRound = OFFICES[key].rounds.includes(route.round);
+      const round = inRound ? route.round : 1;
+      const href = `#/${round}turno/${key}${ENABLED_OFFICES.includes(key) ? keepUf() : ''}`;
+      if (ENABLED_OFFICES.includes(key) && inRound) {
+        return html`<a key=${key} href=${href} aria-current=${route.office === key ? 'page' : undefined}>${OFFICES[key].plural}</a>`;
+      }
+      const note = !inRound ? 'só 1º turno' : 'em breve';
+      return html`<a key=${key} class="is-soon" href=${href} aria-label=${`${OFFICES[key].plural}, ${note}`}
+        aria-current=${route.office === key && inRound ? 'page' : undefined}>${OFFICES[key].plural}<small>${note}</small></a>`;
+    })}
   </nav>`;
 }
 
-function latestUpdate(data) {
+function latestUpdated(data) {
   if (!data) return null;
   if (data.br) return data.br.updated;
   if (data.result) return data.result.updated;
@@ -52,28 +61,48 @@ function latestUpdate(data) {
   return times.sort((a, b) => key(b).localeCompare(key(a)))[0] || null;
 }
 
-/** Where the numbers come from, when the TSE last updated them and whether the count is still running. */
-export function StatusBar({ data, loading, onRefresh, round }) {
-  if (!data) return html`<div class="status-bar" role="status"><span class="dot is-loading"></span>Carregando dados do TSE…</div>`;
-  const finished = isFinished(data);
-  const updated = latestUpdate(data);
-  let state, tone;
-  if (data.status === 'not-published') { state = `Aguardando apuração do ${ROUNDS[round].label}`; tone = 'is-waiting'; }
-  else if (data.status === 'error') { state = 'Sem conexão com o TSE'; tone = 'is-error'; }
-  else if (finished) { state = 'Totalização finalizada'; tone = 'is-done'; }
-  else { state = 'Apuração em andamento'; tone = 'is-live'; }
-  const source = data.source === 'tse'
-    ? html`<a href=${TSE_SITE} target="_blank" rel="noopener">TSE ao vivo · resultados.tse.jus.br</a>`
-    : data.source === 'local'
-      ? html`<span title="Arquivos oficiais do TSE copiados para este site pelo script scripts/fetch-tse.mjs">Cópia dos arquivos oficiais do TSE</span>`
-      : html`<span>TSE</span>`;
-  return html`<div class=${'status-bar ' + tone} role="status" aria-live="polite">
-    <span class="status-state"><span class=${'dot ' + tone}></span>${state}</span>
+/** Where the numbers come from, when the TSE last updated them and whether they are current. */
+export function StatusBar({ feed, round }) {
+  // Listens to every poll ("check"), so only this bar re-renders when the boletim did not change.
+  const { data, loading, checkedAt, refresh } = useFeed(feed, ['data', 'check', 'loading']);
+  const info = statusInfo(data, { round });
+  // The screen reader hears only changes of state (normal → TSE down → back), never each poll.
+  const last = useRef(null);
+  const [announce, setAnnounce] = useState('');
+  useEffect(() => {
+    const text = announcement(last.current, info);
+    if (text) setAnnounce(text);
+    if (info.kind !== 'loading') last.current = info;
+  }, [info.kind, info.boletim]);
+
+  if (!data) return html`<div class="status-bar"><span class="dot is-loading"></span>${info.state}</div>`;
+  const updated = latestUpdated(data);
+  const stale = info.tone === 'is-stale';
+  const copyTime = data.fetchedAt ? brasiliaStamp(new Date(data.fetchedAt)) : '';
+  const source = info.source
+    ? html`<span>${info.source}</span>`
+    : data.source === 'tse'
+      ? html`<a href=${TSE_SITE} target="_blank" rel="noopener">TSE ao vivo · resultados.tse.jus.br</a>`
+      : data.source === 'local'
+        ? html`<span title="Arquivos oficiais do TSE copiados para este site pelo script scripts/fetch-tse.mjs">Cópia dos arquivos oficiais do TSE${copyTime ? ` (feita às ${copyTime})` : ''}</span>`
+        : html`<span>TSE</span>`;
+  const toTable = () => document.getElementById('tabela-estados')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return html`<div class=${'status-bar ' + info.tone} title=${info.detail || undefined}>
+    <span class="status-state">
+      ${stale ? html`<${Icon} name="clock-alert" size=${16}/>` : html`<span class=${'dot ' + info.tone}></span>`}
+      ${info.state}
+    </span>
+    ${info.partial && html`<button class="status-partial link-button" onClick=${toTable} title=${info.partial.names}>
+      <${Icon} name="clock-alert" size=${14}/>${info.partial.text}</button>`}
     <span class="status-source">Fonte: ${source}</span>
-    ${updated && html`<span class="status-updated">Atualizado pelo TSE em <time>${updated}</time> (Brasília)</span>`}
-    ${data.checkedAt && html`<span class="status-checked">Verificado às ${brasiliaTime(data.checkedAt)}</span>`}
-    <button class="link-button" onClick=${onRefresh} disabled=${loading} aria-label="Atualizar dados agora">
+    ${updated && !stale && html`<span class="status-updated">Atualizado pelo TSE em <time>${updated}</time> (Brasília)</span>`}
+    ${info.since && html`<span class="status-since">TSE sem resposta desde ${info.since}</span>`}
+    ${info.retry && checkedAt
+      ? html`<span class="status-retry">${info.retry} · última tentativa às ${brasiliaTime(checkedAt)}</span>`
+      : checkedAt && html`<span class="status-checked">Verificado às ${brasiliaTime(checkedAt)}</span>`}
+    <button class="link-button" onClick=${refresh} disabled=${loading} aria-label="Atualizar dados agora">
       <${Icon} name="refresh" size=${14}/>${loading ? 'Atualizando…' : 'Atualizar'}
     </button>
+    <p class="sr-only" aria-live=${info.kind === 'stale' || info.kind === 'error' ? 'assertive' : 'polite'}>${announce}</p>
   </div>`;
 }

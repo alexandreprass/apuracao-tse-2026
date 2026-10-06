@@ -1,5 +1,6 @@
 // Derived figures. Pure functions over normalized results, shared by the views and the tests.
 import { partyColor } from '../lib/color.js';
+import { titleCase } from '../lib/format.js';
 import { REGIONS, regionOf, stateName, UFS } from './states.js';
 
 export const leader = result => (result?.candidates?.[0]?.votes > 0 ? result.candidates[0] : null);
@@ -29,7 +30,15 @@ export function mapRow(result, name) {
   };
 }
 
-export const stateRows = data => Object.fromEntries(UFS.map(uf => [uf, mapRow(data?.uf?.[uf], stateName(uf))]));
+/** One map row per state; a state whose last request failed keeps its last result and is flagged. */
+export const stateRows = data => Object.fromEntries(UFS.map(uf => {
+  const row = mapRow(data?.uf?.[uf], stateName(uf));
+  if (data?.staleUfs?.includes(uf) || (data?.liveError && data?.uf?.[uf])) {
+    row.stale = true;
+    row.staleBulletin = data.uf[uf]?.updated?.slice(11, 16) || '';
+  }
+  return [uf, row];
+}));
 
 /** Unpacks the shipped municipal file into result-like objects keyed by IBGE code. */
 export function unpackMunicipalities(pack, national, geo) {
@@ -134,7 +143,7 @@ export function participation(scope) {
 /** Plain-text summary for sharing. */
 export function shareText(result, title) {
   const top = (result?.candidates || []).slice(0, 3).filter(c => c.votes > 0)
-    .map(c => `${c.name} (${c.party}) ${c.pct.toFixed(2).replace('.', ',')}%`).join(' · ');
+    .map(c => `${titleCase(c.name)} (${c.party}) ${c.pct.toFixed(2).replace('.', ',')}%`).join(' · ');
   const counted = result?.sections ? ` — ${result.sections.pct.toFixed(2).replace('.', ',')}% das seções apuradas` : '';
   return `${title}: ${top || 'aguardando resultados'}${counted}. Fonte: TSE.`;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { OFFICES } from '../config.js';
-import { STATES } from '../data/states.js';
+import { STATES, ufOfIbge } from '../data/states.js';
 
 // The whole view is a link: #/1turno/presidente/SP/3550308, #/2turno/governador/AC,
 // #/comparar or #/sobre. Anything missing falls back to the 1º turno, president, Brasil.
@@ -8,15 +8,21 @@ export const PAGES = ['comparar', 'sobre'];
 
 export function parseHash(hash) {
   const [path, query = ''] = String(hash || '').replace(/^#\/?/, '').split('?');
-  const parts = path.split('/').filter(Boolean).map(decodeURIComponent);
-  const params = new URLSearchParams(query);
+  // A malformed escape ("%E0") must not take the app down: keep the raw text instead.
+  const parts = path.split('/').filter(Boolean).map(part => { try { return decodeURIComponent(part); } catch { return part; } });
+  let params;
+  try { params = new URLSearchParams(query); } catch { params = new URLSearchParams(); }
   if (PAGES.includes(parts[0])) return { page: parts[0], round: 1, office: 'presidente', uf: null, ibge: null, focus: params.get('c') };
   const round = parts[0] === '2turno' ? 2 : 1;
   let office = OFFICES[parts[1]] ? parts[1] : 'presidente';
   if (!OFFICES[office].rounds.includes(round)) office = 'presidente';
   const code = (parts[2] || '').toUpperCase();
-  const uf = (STATES[code] || (code === 'ZZ' && OFFICES[office].federal)) ? code : null;
-  const ibge = uf && uf !== 'ZZ' && /^\d{7}$/.test(parts[3] || '') ? parts[3] : null;
+  let uf = (STATES[code] || (code === 'ZZ' && OFFICES[office].federal)) ? code : null;
+  let ibge = uf && uf !== 'ZZ' && /^\d{7}$/.test(parts[3] || '') ? parts[3] : null;
+  // The municipality must belong to the state in the address; if not, follow the municipality.
+  if (ibge && ufOfIbge(ibge) !== uf) {
+    if (ufOfIbge(ibge)) uf = ufOfIbge(ibge); else ibge = null;
+  }
   return { page: 'resultados', round, office, uf, ibge, focus: params.get('c') };
 }
 

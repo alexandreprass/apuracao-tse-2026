@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'preact/hooks';
 import { html } from '../lib/html.js';
-import { int, normalize, pct, titleCase } from '../lib/format.js';
+import { int, normalize, pct, pp, titleCase } from '../lib/format.js';
 import { partyColor } from '../lib/color.js';
 import { REGIONS, regionOf, stateName, UFS } from '../data/states.js';
 import { marginPoints } from '../data/analysis.js';
-import { StatusBadge } from './ui.js';
+import { StaleTag, StatusBadge } from './ui.js';
 
 const PAGE = 50;
 
@@ -28,7 +28,7 @@ function useSort(initial, initialDir = 'desc') {
 const Who = ({ c }) => c ? html`<span class="who"><i class="swatch" style=${{ background: partyColor(c.party) }}></i>${titleCase(c.name)} <small>${c.party}</small></span>` : html`<span class="muted">—</span>`;
 
 /** All 27 states (and abroad, kept apart) with who leads, by how much and how much is counted. */
-export function StatesTable({ data, onState, exterior }) {
+export function StatesTable({ data, onState, exterior, staleUfs = [] }) {
   const [region, setRegion] = useState('');
   const [query, setQuery] = useState('');
   const { header, apply } = useSort('uf', 'asc');
@@ -41,11 +41,13 @@ export function StatesTable({ data, onState, exterior }) {
     count: x => x.r.sections.pct, turnout: x => x.r.turnoutPct, electorate: x => x.r.electorate,
   });
   const row = ({ uf, r }, label) => html`<tr key=${uf}>
-    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || stateName(uf)}</button> <small class="muted">${uf === 'ZZ' ? '' : uf}</small></th>
+    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || stateName(uf)}</button> <small class="muted">${uf === 'ZZ' ? '' : uf}</small>
+      ${staleUfs?.includes(uf) && html` <${StaleTag} updated=${r.updated} short/>`}</th>
     <td><${Who} c=${r.candidates[0]}/></td>
     <td class="num">${pct(r.candidates[0]?.pct || 0)}</td>
     <td><${Who} c=${r.candidates[1]}/></td>
-    <td class="num">${pct(marginPoints(r))}</td>
+    <td class="num">${pct(r.candidates[1]?.pct || 0)}</td>
+    <td class="num">${pp(marginPoints(r))}</td>
     <td class="num">${pct(r.sections.pct)}</td>
     <td class="num">${pct(r.turnoutPct)}</td>
     <td class="num">${int(r.electorate)}</td>
@@ -58,10 +60,10 @@ export function StatesTable({ data, onState, exterior }) {
     </div>
     <div class="table-wrap"><table class="data-table">
       <caption class="sr-only">Resultado por estado</caption>
-      <thead><tr>${header('uf', 'Estado')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th>
+      <thead><tr>${header('uf', 'Estado')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th><th scope="col" class="num">%</th>
         ${header('margin', 'Diferença', 'num')}${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
       <tbody>${sorted.map(x => row(x))}</tbody>
-      ${exterior && html`<tbody class="exterior-row"><tr><th colspan="8" scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
+      ${exterior && html`<tbody class="exterior-row"><tr><th colspan="9" scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
     </table></div>`;
 }
 
@@ -87,12 +89,12 @@ export function MunicipalitiesTable({ rows, onMunicipality }) {
     </div>
     <div class="table-wrap"><table class="data-table">
       <caption class="sr-only">Resultado por município</caption>
-      <thead><tr>${header('name', 'Município')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th>
+      <thead><tr>${header('name', 'Município')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th><th scope="col" class="num">%</th>
         ${header('margin', 'Diferença', 'num')}${header('valid', 'Válidos', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
       <tbody>${sorted.slice(0, limit).map(({ id, r }) => html`<tr key=${id}>
         <th scope="row"><button class="link-button" onClick=${() => onMunicipality(id)}>${r.name}</button></th>
         <td><${Who} c=${r.candidates[0]}/></td><td class="num">${pct(r.candidates[0]?.pct || 0)}</td>
-        <td><${Who} c=${r.candidates[1]}/></td><td class="num">${pct(marginPoints(r))}</td>
+        <td><${Who} c=${r.candidates[1]}/></td><td class="num">${pct(r.candidates[1]?.pct || 0)}</td><td class="num">${pp(marginPoints(r))}</td>
         <td class="num">${int(r.valid)}</td><td class="num">${pct(r.turnoutPct)}</td><td class="num">${int(r.electorate)}</td>
       </tr>`)}</tbody>
     </table></div>

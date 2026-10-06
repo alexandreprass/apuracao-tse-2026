@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createGeography, cameraFor } from '../src/map/geography.js';
+import { IBGE_PREFIX, ufOfIbge } from '../src/data/states.js';
+import { inkOn } from '../src/map/mapTheme.js';
 import { completionColor, marginColor, mix, MAP_BASE, partyColor } from '../src/lib/color.js';
 
 // Node has no Canvas. Geometry tests only collect bounds and membership;
@@ -10,13 +12,36 @@ globalThis.Path2D = class { moveTo() {} lineTo() {} closePath() {} addPath() {} 
 const atlas = JSON.parse(readFileSync(new URL('../public/data/brasil.topo.json', import.meta.url), 'utf8'));
 const geo = createGeography(atlas, { m: {} });
 
-test('the atlas has 5,570 municipalities in 27 states', () => {
-  assert.equal(geo.municipalities.length, 5570);
+test('the atlas has 5,571 municipalities in 27 states', () => {
+  assert.equal(geo.municipalities.length, 5571);
   assert.equal(Object.keys(geo.states).length, 27);
   assert.equal(geo.states.SP.municipalities.length, 645);
   for (const m of geo.municipalities) {
     assert.ok(m.box.every(Number.isFinite));
     assert.ok(geo.states[m.uf]);
+  }
+});
+
+test('every municipality the TSE publishes is drawn on the map (Boa Esperança do Norte included)', () => {
+  const codes = JSON.parse(readFileSync(new URL('../public/data/tse/municipios.json', import.meta.url), 'utf8'));
+  const missing = Object.keys(codes).filter(ibge => !geo.byId.has(ibge));
+  assert.deepEqual(missing, []);
+  assert.equal(Object.keys(codes).length, 5571);
+  assert.equal(geo.byId.get('5101837').name, 'Boa Esperança do Norte');
+  assert.equal(geo.byId.get('5101837').uf, 'MT');
+});
+
+test('IBGE code prefixes match the atlas', () => {
+  for (const m of geo.municipalities) assert.equal(ufOfIbge(m.id), m.uf, m.name);
+  assert.equal(Object.keys(IBGE_PREFIX).length, 27);
+});
+
+test('map labels pick the ink with more contrast (AA for the presidential finalists)', () => {
+  for (const theme of ['dark', 'light']) for (const party of ['PL', 'PT', 'PSD', 'MDB', 'NOVO', 'UNIÃO']) for (const margin of [0, .06, .2, .5]) {
+    const fill = marginColor(partyColor(party), margin, theme), ink = inkOn(fill);
+    const other = ink === '#ffffff' ? '#141821' : '#ffffff';
+    assert.ok(contrast(fill, ink) >= contrast(fill, other) - 1e-9, `${party} ${margin} ${theme}`);
+    if (party === 'PL' || party === 'PT') assert.ok(contrast(fill, ink) >= 4.5, `${party} ${margin} ${theme}: ${contrast(fill, ink).toFixed(2)}`);
   }
 });
 

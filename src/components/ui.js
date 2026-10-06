@@ -50,10 +50,11 @@ export function Metrics({ result, compactMode = false }) {
     ['Eleitorado', int(result.electorate), result.electorate ? 'eleitores aptos' : ''],
     ['Comparecimento', int(result.turnout), pct(result.turnoutPct)],
     ['Abstenção', int(result.abstention), pct(result.abstentionPct)],
-    ['Votos válidos', int(result.valid), pct(result.validPct) + ' do total'],
+    ['Votos válidos', int(result.valid), pct(result.subJudice && result.totalVotes ? (100 * result.valid) / result.totalVotes : result.validPct) + ' do total'],
     ['Brancos', int(result.blank), pct(result.blankPct)],
     ['Nulos', int(result.null), pct(result.nullPct)],
   ];
+  if (result.subJudice) items.push(['Anulados sub judice', int(result.subJudice), 'entram na base dos % do TSE até a decisão']);
   if (result.legend) items.push(['Votos de legenda', int(result.legend), 'no partido']);
   if (result.quotient) items.push(['Quociente eleitoral', int(result.quotient), 'votos por vaga']);
   return html`<div class=${'metrics' + (compactMode ? ' is-compact' : '')}>
@@ -84,7 +85,7 @@ export function CandidateCard({ candidate, office, uf, rank, big = false, showVo
     </div>
     <div class="candidate-score">
       ${placeholder
-        ? html`<strong>—</strong><span>${note || 'aguardando'}</span>`
+        ? html`<strong class="awaiting">aguardando</strong>${note && html`<span>${note}</span>`}`
         : html`<strong>${pct(candidate.pct)}</strong>${showVotes && html`<span>${int(candidate.votes)} votos</span>`}`}
     </div>
     ${!placeholder && html`<div class="candidate-bar" aria-hidden="true"><i style=${{ width: Math.min(100, candidate.pct) + '%' }}></i></div>`}
@@ -146,13 +147,28 @@ export function Notice({ tone = 'info', title, children }) {
 /** Days, hours and minutes until `target` (an ISO date), ticking every second. */
 export function Countdown({ target }) {
   const [now, setNow] = useState(Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const ms = new Date(target).getTime() - now;
+  const tick = ms > 3600_000 ? 30_000 : 1000;
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), tick); return () => clearInterval(t); }, [tick]);
   if (ms <= 0) return html`<span class="countdown">Urnas fechadas — aguardando os primeiros boletins do TSE</span>`;
   const d = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000) % 24, m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+  // Seconds only distract days ahead: they appear in the last hour.
+  const parts = ms > 3600_000 ? [[d, 'dias'], [h, 'h'], [m, 'min']] : [[m, 'min'], [s, 's']];
   return html`<span class="countdown" role="timer" aria-label=${`Faltam ${d} dias, ${h} horas e ${m} minutos`}>
-    ${[[d, 'dias'], [h, 'h'], [m, 'min'], [s, 's']].map(([v, u]) => html`<span key=${u}><b>${String(v).padStart(2, '0')}</b>${u}</span>`)}
+    ${parts.map(([v, u]) => html`<span key=${u}><b>${String(v).padStart(2, '0')}</b>${u}</span>`)}
   </span>`;
 }
 
 export const CompactNumber = ({ value }) => html`<span title=${int(value)}>${compact(value)}</span>`;
+
+/**
+ * "⏱ boletim das 21:04": the number next to it is the last one received, not a live one.
+ * `updated` is the TSE time "dd/mm/yyyy hh:mm:ss" (Brasília).
+ */
+export function StaleTag({ updated, text, short = false, title }) {
+  const time = updated ? updated.slice(11, 16) : '';
+  const label = text || (short ? time || 'atrasado' : `boletim das ${time || '—'}`);
+  return html`<span class="stale-tag" title=${title || 'O TSE não respondeu na última consulta; mostrando o último boletim recebido'}>
+    <span aria-hidden="true">⏱</span> ${label}${short ? html`<span class="sr-only"> (boletim atrasado)</span>` : ''}
+  </span>`;
+}

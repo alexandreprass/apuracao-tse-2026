@@ -28,7 +28,7 @@ export function Breadcrumb({ route, geo, allowExterior = false }) {
 
 export const placeTitle = (route, geo) => {
   const { uf, ibge } = route;
-  if (ibge) return `${geo.byId.get(ibge)?.name || ibge} (${uf})`;
+  if (ibge) return `${geo?.byId.get(ibge)?.name || ibge} (${uf})`;
   if (uf === 'ZZ') return 'Exterior';
   if (uf) return stateName(uf);
   return 'Brasil';

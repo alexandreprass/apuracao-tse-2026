@@ -16,6 +16,7 @@ export function TrendChart({ points }) {
   return html`<figure class="trend">
     <svg viewBox=${`0 0 ${W} ${H}`} role="img" aria-label="Evolução do percentual de cada candidato conforme a apuração avança">
       <line x1=${P} x2=${W - P} y1=${H - P} y2=${H - P} class="axis"/>
+      ${lo < 50 && hi > 50 && html`<line x1=${P} x2=${W - P} y1=${y(50)} y2=${y(50)} class="trend-majority"/><text x=${W - P} y=${y(50) - 4} class="tick" text-anchor="end">50%</text>`}
       <text x=${P} y=${H - 8} class="tick">0%</text><text x=${W - P} y=${H - 8} class="tick" text-anchor="end">100% apurado</text>
       <text x=${4} y=${y(hi) + 4} class="tick">${pct(hi, 0)}</text><text x=${4} y=${y(lo)} class="tick">${pct(lo, 0)}</text>
       ${[...series.values()].map(s => html`<polyline key=${s.n} fill="none" stroke=${partyColor(s.party)} stroke-width="2.5"
