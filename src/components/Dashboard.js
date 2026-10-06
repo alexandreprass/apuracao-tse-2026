@@ -73,25 +73,29 @@ export const candidateExtra = c => [c.vice && `Vice: ${titleCase(c.vice)}`, c.co
 export const moreLabel = n => `Ver mais ${n} ${n === 1 ? 'candidato' : 'candidatos'}`;
 
 /**
- * Scoreboard in thin rows: leader 48px (% in 20px), others 36px; 32px photo, party stripe, name · party, %, votes, bar.
- * The name is a button that opens the vice and coalition in a line under the row (also in the row's title).
+ * Scoreboard in thin rows. Vice and coalition stay hidden until the chevron next to the name is opened.
  */
 export function Scoreboard({ result, round, office, uf = null, show = 4, focus = null }) {
   const list = result.candidates;
   // A candidate picked in the search is always on screen (opened list if needed).
   const [open, setOpen] = useState(() => list.findIndex(c => c.n === focus) >= show);
+  const [detail, setDetail] = useState(null);
   const visible = open ? list : list.slice(0, show);
   return html`<ol class="score">
     ${visible.map((c, i) => {
       const extra = candidateExtra(c);
-      return html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '')} style=${{ '--party': partyColor(c.party) }} title=${extra || undefined}>
+      const expanded = detail === c.n;
+      return html`<li key=${c.n} id=${'cand-' + c.n} class=${'score-row' + (i === 0 ? ' is-leader' : '') + (expanded ? ' is-open' : '')} style=${{ '--party': partyColor(c.party) }}>
         <${Photo} candidate=${c} office=${office} uf=${uf} size=${32}/>
         <span class="score-name"><b>${titleCase(c.name)}</b> <small>${c.party}${c.n ? ` · ${c.n}` : ''}</small>
-          ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}</span>
+          ${round && c.kind === 'eleito' ? html`<${ElectedBadge} candidate=${c} round=${round}/>` : html`<${StatusBadge} candidate=${c}/>`}
+          ${extra && html`<button type="button" class="score-chevron" aria-expanded=${expanded} aria-controls=${'cand-extra-' + c.n}
+            aria-label=${expanded ? 'Fechar vice e coligação' : 'Ver vice e coligação'}
+            onClick=${() => setDetail(expanded ? null : c.n)}><${Icon} name=${expanded ? 'up' : 'down'} size=${14}/></button>`}</span>
         <span class="score-pct">${pct(c.pct)}</span>
         <span class="score-votes">${int(c.votes)}</span>
         <span class="score-bar"><i style=${{ width: Math.min(100, c.pct) + '%' }}></i></span>
-        ${extra && html`<span class="score-extra">${extra}</span>`}
+        ${extra && html`<span class="score-extra" id=${'cand-extra-' + c.n} hidden=${!expanded}>${extra}</span>`}
       </li>`;
     })}
     ${list.length > show && html`<li class="score-more"><button class="link-button" onClick=${() => setOpen(!open)} aria-expanded=${open}>
