@@ -57,9 +57,9 @@ export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus
       ${staleUfs?.includes(uf) && html` <${StaleTag} updated=${r.updated} short/>`}</th>
     <td><div class="state-candidates">${[0, 1].map((index) => {
       const c = r.candidates[index];
-      return c ? html`<span class="state-candidate" key=${index}><b class="placement-label">${index === 0 ? '1º colocado' : '2º colocado'}</b>
+      return c ? html`<span class="state-candidate" key=${index}><b class="placement-label">${index === 0 ? '1º' : '2º'}</b>
         <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span>${titleCase(c.name)} <small>${c.party}</small></span><b class="state-candidate-pct">${pct(c.pct || 0)}</b></span>`
-        : html`<span class="state-candidate is-empty" key=${index}><b class="placement-label">${index === 0 ? '1º colocado' : '2º colocado'}</b><span>—</span></span>`;
+        : html`<span class="state-candidate is-empty" key=${index}><b class="placement-label">${index === 0 ? '1º' : '2º'}</b><span>—</span></span>`;
     })}</div></td>
     <td class="num">${pp(marginPoints(r))}</td>
     ${showStatus && html`<td><${RaceBadge} result=${r} round=${round}/></td>`}
