@@ -199,7 +199,7 @@ test('manifest: build/fetch script lists exactly the rounds and offices on disk 
   const { buildManifest } = await import('../scripts/manifest.mjs');
   const built = await buildManifest();
   assert.deepEqual(Object.keys(built.rounds), ['1']);
-  assert.deepEqual(built.rounds[1].municipal, ['presidente', 'governador']);
+  assert.deepEqual(built.rounds[1].municipal, ['presidente', 'governador', 'senador']);
   assert.ok(built.rounds[1].offices.includes('governador'));
   assert.deepEqual(JSON.parse(readFileSync(new URL('../public/data/manifest.json', import.meta.url), 'utf8')), built);
 });

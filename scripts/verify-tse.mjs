@@ -2,6 +2,7 @@
 // Compares the shipped copy (public/data/tse/1) with the live TSE files, field by field.
 //   node scripts/verify-tse.mjs [UF ...]            # presidente: Brasil, exterior e algumas UFs
 //   node scripts/verify-tse.mjs --cargo governador  # governador: as 27 UFs, as 27 capitais e 30 municípios sorteados
+//   node scripts/verify-tse.mjs --cargo senador     # senador: idem; cada UF termina com tantos eleitos quanto as vagas (2 em 2026)
 import { readFile } from 'node:fs/promises';
 import { tseResultUrl } from '../src/config.js';
 import { normalizeResult } from '../src/data/normalize.js';
@@ -38,6 +39,11 @@ const compare = (label, a, b) => {
   if (office === 'governador' && a.finished) {
     const won = a.candidates.filter(c => c.kind === 'eleito').length, runoff = a.candidates.filter(c => c.kind === 'segundo-turno').length;
     if (!((won === 1 && runoff === 0) || (won === 0 && runoff === 2))) diffs.push(`desfecho estranho: ${won} eleito(s), ${runoff} no 2º turno`);
+  }
+  // Senate: no runoff; a finished race has exactly as many elected (TSE status) as seats in dispute.
+  if (office === 'senador' && a.finished) {
+    const won = a.candidates.filter(c => c.kind === 'eleito').length;
+    if (won !== (b.seats || 2) || a.candidates.some(c => c.kind === 'segundo-turno')) diffs.push(`desfecho estranho: ${won} eleito(s) para ${b.seats} vaga(s)`);
   }
   if (a.sections.pct !== b.sections.pct) diffs.push(`seções ${a.sections.pct} ≠ ${b.sections.pct}`);
   const votes = x => Object.fromEntries(x.candidates.map(c => [c.n, c.votes]));

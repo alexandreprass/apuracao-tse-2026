@@ -28,7 +28,7 @@ const round = Number(args[args.indexOf('--round') + 1]) || 1;
 const withMunicipalities = !args.includes('--no-municipios');
 const onlyOffices = args.includes('--cargos') ? args[args.indexOf('--cargos') + 1].split(',') : null;
 // Offices with a municipal breakdown on the map (one small file per state).
-const MUNICIPAL_OFFICES = ['presidente', 'governador'];
+const MUNICIPAL_OFFICES = ['presidente', 'governador', 'senador'];
 // Column order of the municipal files (same as PACK_FIELDS in src/data/analysis.js). "anuladosSubJudice"
 // (TSE "vansj") is needed to reproduce the TSE's percentages: votes / (válidos + sub judice).
 const PACK_FIELDS = ['apuradoPct', 'eleitorado', 'comparecimento', 'validos', 'brancos', 'nulos', 'anuladosSubJudice', '...votos'];
