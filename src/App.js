@@ -7,7 +7,7 @@ import { useOffice } from './hooks/useData.js';
 import { useHotkey } from './hooks/useHotkey.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
-import { OfficeTabs, StatusBar, TopBar } from './components/Header.js';
+import { SiteFooter, StatusBar, TopBar } from './components/Header.js';
 import { SearchDialog, searchableCandidates } from './components/SearchDialog.js';
 import { Loading, Notice, Section } from './components/ui.js';
 import { placeTitle } from './components/Place.js';
@@ -15,7 +15,7 @@ import { MajoritarianView } from './views/Majoritarian.js';
 import { useGeography } from './map/useGeography.js';
 
 function About() {
-  return html`<${Section} title="Sobre os dados" className="prose">
+  return html`<${Section} heading="h1" title="Sobre os dados" className="prose">
     <p>Todos os números vêm dos arquivos públicos de resultados do Tribunal Superior Eleitoral, em
       <a href=${TSE_SITE} target="_blank" rel="noopener">resultados.tse.jus.br</a>, os mesmos usados pelo app Resultados do TSE.
       Nenhum resultado é estimado nem simulado. A única estimativa do site é a do quadro “Dá pra virar?” no 2º turno
@@ -73,6 +73,11 @@ export function App() {
   }, [title]);
 
   useHotkey('/', event => { event.preventDefault(); setSearching(true); }, { enabled: !searching });
+  useEffect(() => {
+    const onKey = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearching(true); } };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
 
   const share = async () => {
     const text = scopeResult ? shareText(scopeResult, title) : title;
@@ -114,10 +119,8 @@ export function App() {
 
   return html`<div class="app">
     <a class="skip-link" href="#conteudo">Pular para os resultados</a>
-    <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}/>
-    <${OfficeTabs} route=${route}/>
-    ${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>
-`}
+    <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}
+      status=${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>`}/>
     <main id="conteudo" tabindex="-1">
       ${route.page === 'sobre' ? html`<${About}/>`
         : route.page === 'comparar' ? html`<${ComingSoon} what="A comparação entre 1º e 2º turno e com 2022"/>`
@@ -125,11 +128,8 @@ export function App() {
         : geoError ? html`<${Notice} tone="error" title="O mapa não carregou">${geoError.message}${' '}<button class="button" onClick=${retryGeo}>Tentar de novo</button></${Notice}>`
         : !geo ? html`<${Loading} text="Carregando resultados e mapa…"/>`
         : html`<${MajoritarianView} route=${route} geo=${geo} theme=${theme} office=${officeState} onChooseMunicipality=${() => setSearching('municipio')}/>`}
+      <${SiteFooter} feed=${route.page === 'resultados' && enabled ? officeState.feed : null} round=${route.round}/>
     </main>
-    <footer class="site-footer">
-      <p>Fonte: <a href=${TSE_SITE} target="_blank" rel="noopener">Tribunal Superior Eleitoral (TSE)</a> · resultados oficiais; estimativas só onde estiver escrito “estimativa”.${' '}<a href="#/sobre">Sobre os dados</a></p>
-      <p class="muted">Site independente, sem vínculo com o TSE. Em caso de divergência, vale o resultado publicado pelo TSE.</p>
-    </footer>
     ${searching && geo && (searching === 'municipio'
       ? html`<${SearchDialog} geo=${geo} candidates=${[]} only="municipality" onPick=${pickMine} onClose=${() => setSearching(false)}/>`
       : html`<${SearchDialog} geo=${geo} candidates=${candidates} onPick=${pick} onClose=${() => setSearching(false)}/>`)}

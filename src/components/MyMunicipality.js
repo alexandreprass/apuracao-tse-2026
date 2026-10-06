@@ -50,9 +50,10 @@ function MineRow({ office, place, ibge, officeData }) {
  * "Meu município": the reader's city pinned at the top of the runoff page. One card, one compact row per
  * 2º turno race of the city: Presidente, plus Governador in the states where the TSE marked a governor runoff.
  */
-export function MyMunicipality({ geo, officeData, onChoose }) {
+export function MyMunicipality({ geo, onChoose }) {
   const [ibge, save] = useMyMunicipality();
   const place = ibge ? geo.byId.get(ibge) : null;
+  const officeData = useOffice(2, 'presidente').data; // the 2º turno of president, shared with its page
   const governorFirst = useOffice(1, 'governador').data;
   const offices = mineOffices(place?.uf, governorFirst);
   // The governor 2º turno feed (and its TSE probe) only runs when the reader's city has that race.

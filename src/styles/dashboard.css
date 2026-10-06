@@ -1,0 +1,176 @@
+/*
+ * One-screen dashboard (design-review/layout-pr2.md).
+ * >= 720px: the page does not scroll; top bar 48px, body = map column + side panel (380px, 320px below 1024px);
+ *           only the panel (and non-dashboard pages inside <main>) scroll inside.
+ * <  720px: stacked: 44px bar, 40px office tabs, map at 42svh, top two stuck under it, panel in tabs.
+ * Spacing 4/8/12/16 only; numbers tabular, weight 600.
+ */
+
+/* ---- Top bar ---- */
+.topbar {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: 'brand offices rounds actions';
+  align-items: center; gap: 0 var(--space-3); height: 48px; padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line); background: var(--bg); backdrop-filter: none;
+}
+.topbar .brand { grid-area: brand; }
+.topbar .brand small { display: none; }
+.topbar .brand b { font-size: var(--text-md); }
+.topbar .brand-mark { width: 22px; height: 22px; border-radius: 6px; }
+.topbar .office-tabs { grid-area: offices; margin: 0; padding: 0; max-width: none; mask-image: none; }
+.topbar .round-tabs { grid-area: rounds; justify-content: flex-start; }
+.topbar .topbar-actions { grid-area: actions; gap: var(--space-1); }
+.topbar .topbar-status { grid-area: status; min-width: 0; }
+.round-tabs a, .office-tabs a, .office-tabs .is-soon { padding: 4px 10px; font-size: var(--text-md); }
+.office-tabs .is-soon small { margin-left: 2px; }
+.search-trigger { height: 32px; }
+.search-trigger kbd { font-size: var(--text-xs); }
+.icon-button { width: 32px; height: 32px; }
+.icon-button.is-small { width: 28px; height: 28px; }
+
+/* Status: one compact line, amber when the TSE is down. */
+.status-bar { margin: 0; width: auto; max-width: none; padding: 2px 8px; gap: var(--space-2); flex-wrap: nowrap; border-radius: 999px; white-space: nowrap; }
+.status-bar .status-text { overflow: hidden; text-overflow: ellipsis; }
+.status-bar .status-state { min-width: 0; font-weight: 600; }
+.status-bar .icon-button { margin-left: 0; border: 0; }
+.status-details { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--space-3); }
+
+@media (min-width: 720px) {
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: 'brand offices rounds status actions'; }
+  .topbar .status-bar { max-width: 300px; }
+}
+@media (min-width: 720px) and (max-width: 1279px) {
+  .round-compare, .search-trigger kbd { display: none; }
+  .topbar .status-bar { max-width: 200px; }
+}
+
+/* ---- Page frame ---- */
+@media (min-width: 720px) {
+  html { scrollbar-gutter: auto; overflow: hidden; }
+  body { height: 100dvh; overflow: hidden; }
+  .app { height: 100dvh; min-height: 0; display: grid; grid-template-rows: 48px minmax(0, 1fr); }
+  main { max-width: none; padding: 0; gap: 0; min-height: 0; overflow: auto; }
+  /* Non-dashboard pages (waiting, notices, about) scroll inside <main>, centred. */
+  main > :not(.dash):not(.site-footer) { width: min(1100px, 100% - 2 * var(--space-4)); margin: var(--space-4) auto 0; }
+  main:has(> .dash) { overflow: hidden; }
+  main:has(> .dash) > .site-footer { display: none; }
+}
+
+/* ---- Dashboard grid ---- */
+.dash { display: flex; flex-direction: column; min-width: 0; }
+@media (min-width: 720px) {
+  .dash { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; }
+}
+@media (min-width: 1024px) { .dash { grid-template-columns: minmax(0, 1fr) 380px; } }
+
+/* Map column: 36px strip, map in all the height left, legend on one line under it. */
+.dash-map { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.dash-strip { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; padding: 0 var(--space-3); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.dash-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dash-crumbs { position: absolute; top: var(--space-2); left: var(--space-3); z-index: var(--z-map-overlay); max-width: calc(100% - 2 * var(--space-3)); }
+.dash-crumbs .place-bar { gap: var(--space-2); justify-content: flex-start; }
+.dash-crumbs .breadcrumb { padding: 2px 8px; border-radius: var(--radius); background: color-mix(in oklch, var(--bg) 85%, transparent); }
+.dash-crumbs select { height: 28px; }
+
+.count-strip { display: flex; gap: var(--space-4); margin: 0; white-space: nowrap; }
+.count-strip div { display: flex; align-items: baseline; gap: 6px; }
+.count-strip dt { color: var(--ink-3); font-size: var(--text-xs); }
+.count-strip dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.strip-actions { margin-left: auto; display: inline-flex; gap: var(--space-2); }
+.button.is-small { height: 28px; padding: 0 10px; font-size: var(--text-sm); }
+.dash-strip .summary-chips { flex-wrap: nowrap; }
+
+/* The map card fills the stage: square map centred in the height, controls overlaid. */
+.map-card.is-compact { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 0; background: none; }
+.map-card.is-compact .map-area { flex: 1; min-height: 0; max-width: none; margin: 0; display: flex; justify-content: center; padding: var(--space-2); }
+.map-card.is-compact .map-frame { height: 100%; max-width: 100%; aspect-ratio: 1 / 1; }
+.map-overlay { position: absolute; top: var(--space-2); right: var(--space-3); z-index: var(--z-map-overlay); }
+.map-card.is-compact .legend { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; margin: 0; padding: 6px var(--space-3); gap: var(--space-3); border-top: 1px solid var(--line); white-space: nowrap; font-size: var(--text-xs); row-gap: 0; }
+.map-card.is-compact .legend-key { flex-basis: auto; }
+.map-card.is-compact .legend-ramp { padding-bottom: 0; grid-template-columns: auto repeat(4, 22px); }
+.map-card.is-compact .legend-ramp small { display: none; }
+
+/* ---- Side panel ---- */
+.dash-panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--surface); }
+.dash-score { flex: none; max-height: 55%; overflow: auto; padding: var(--space-3); border-bottom: 1px solid var(--line); display: grid; gap: var(--space-2); }
+.dash-tabs { flex: none; display: flex; gap: var(--space-1); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.dash-tabs button { flex: none; height: 36px; padding: 0 var(--space-2); border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font: inherit; font-weight: 500; cursor: pointer; }
+.dash-tabs button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--ink); }
+.dash-tabpanel { flex: 1; min-height: 0; overflow: auto; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.dash-tabpanel > .site-footer { margin-top: auto; padding: var(--space-3) 0 0; border-top: 1px solid var(--line); font-size: var(--text-xs); }
+.dash-drawer { position: absolute; inset: 0; z-index: var(--z-sheet); display: flex; flex-direction: column; background: var(--surface); }
+.dash-drawer-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); height: 44px; padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
+.dash-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* Scoreboard in thin rows. */
+.score-card { display: grid; gap: var(--space-2); }
+.score-card.is-stale { opacity: 1; }
+.score-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.score { display: grid; }
+.score-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: 1fr 4px; column-gap: var(--space-3); align-items: center;
+  min-height: 36px; padding-left: var(--space-3); position: relative; scroll-margin: var(--space-4); }
+.score-row::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 4px; border-radius: 2px; background: var(--party); }
+.score-row.is-leader { min-height: 48px; }
+.score-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-name small { color: var(--ink-3); font-size: var(--text-xs); }
+.score-name .badge { margin-left: 4px; vertical-align: 1px; }
+.score-pct { font-weight: 600; font-variant-numeric: tabular-nums; }
+.score-row.is-leader .score-pct { font-size: var(--text-xl); }
+.score-votes { color: var(--ink-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; text-align: right; min-width: 72px; }
+.score-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.score-bar i { display: block; height: 100%; background: var(--party); }
+.score-more { padding: 4px 0 0 var(--space-3); }
+.score-row.is-focus { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+.score-card .hero-margin { font-size: var(--text-sm); }
+.score-card .hero-note { font-size: var(--text-sm); margin: 0; }
+.score-card .party-bars { gap: 2px; }
+
+/* Panel content. */
+.dash-score .comeback, .dash-tabpanel .card, .dash-drawer-body .card { padding: var(--space-3); }
+.comeback .card-head { margin-bottom: var(--space-2); }
+.comeback .card-head h2 { font-size: var(--text-md); }
+.comeback .comeback-grid { gap: var(--space-2); }
+.comeback strong { font-size: var(--text-lg); }
+.won-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--space-3); margin: 0; font-size: var(--text-sm); }
+.won-line b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.won-line .metric-label { flex-basis: 100%; }
+.states-summary { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.panel-link { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--blue-text); font: inherit; font-weight: 600; cursor: pointer; }
+.exterior-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--ink); text-decoration: none; font-size: var(--text-sm); }
+.exterior-line small { margin-left: auto; color: var(--ink-3); }
+.runoff-list { display: grid; gap: var(--space-2); }
+.dash .mine { padding: var(--space-3); }
+
+/* ---- Phones ---- */
+@media (max-width: 719px) {
+  .topbar { height: auto; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 44px 40px auto;
+    grid-template-areas: 'brand rounds actions' 'offices offices offices' 'status status status'; padding: 0 var(--space-2); }
+  .topbar .office-tabs { border-top: 1px solid var(--line); height: 40px; align-items: center; }
+  .topbar .round-tabs { justify-content: flex-end; }
+  .round-compare, .search-trigger kbd, .search-trigger span, .topbar-actions .icon-button[aria-label^='Compartilhar'] { display: none; }
+  .topbar-status { padding: 0 0 6px; }
+  .topbar .status-bar { width: fit-content; max-width: 100%; }
+  main { padding: 0 0 var(--space-4); gap: var(--space-3); }
+  main > :not(.dash) { margin-inline: var(--space-3); }
+  .dash-strip { border-bottom: 0; }
+  .map-card.is-compact .map-area { height: 42svh; flex: none; }
+  .dash-leaders { position: sticky; top: 0; z-index: var(--z-sticky); display: flex; justify-content: space-between; gap: var(--space-3);
+    padding: 6px var(--space-3); background: var(--bg); border-block: 1px solid var(--line); font-size: var(--text-sm); }
+  .dash-leaders > span { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .dash-leaders > span:last-child { flex-direction: row-reverse; }
+  .dash-leader-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-leaders b { font-variant-numeric: tabular-nums; }
+  .dash-panel { border-left: 0; background: none; }
+  .dash-tabs { position: sticky; top: 33px; z-index: 5; background: var(--bg); }
+  .dash-tabpanel { overflow: visible; }
+  .dash-drawer { position: fixed; z-index: 50; }
+}
+
+/* Tables and lists inside the panel and drawer: compact rows. */
+.dash .table-wrap { margin: 0 calc(-1 * var(--space-3)); padding: 0 var(--space-3); }
+.dash .data-table th, .dash .data-table td { padding: 4px 8px; }
+.dash .table-tools { margin-bottom: var(--space-2); }
+.dash .race-list { gap: var(--space-1); }
+.dash .race-list li { padding: 4px 0; font-size: var(--text-sm); }
+.dash .race-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2); align-items: center; }
+.dash .race-list li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

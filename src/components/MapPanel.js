@@ -14,7 +14,7 @@ const RAMP_LABELS = ['<5', '5–15', '15–30', '>30'];
  * coloured by who leads and by how much, or by how much has been counted.
  */
 export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState, onMunicipality, title, nameOf,
-  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados' }) {
+  showStatus = false, statusLabel = '2º turno', initialMetric = 'lider', emptyLabel = 'Sem resultados', compact = false }) {
   const [metric, setMetric] = useState(initialMetric);
   const touch = useMediaQuery('(pointer: coarse)');
   const verb = touch ? 'Toque' : 'Clique';
@@ -85,14 +85,15 @@ export function MapPanel({ geo, theme, states, municipalities, uf, ibge, onState
     return [...tally.values()].sort((a, b) => b.decided - a.decided || b.open - a.open);
   }, [states, showStatus]);
 
-  return html`<section class="card map-card" aria-label="Mapa interativo">
-    <header class="card-head">
-      <div><h2>${title}</h2><p>${uf ? (municipality ? `${municipality.name} · ${stateName(uf)}` : `${verb} em um município para ver o resultado dele.`) : `${verb} em um estado para abrir os resultados dele.`}</p></div>
-      <div class="map-controls">
-        <${Segmented} label="Cor do mapa" value=${metric === 'situacao' && (!showStatus || uf) ? 'lider' : metric} onChange=${setMetric}
-          options=${[['lider', 'Quem lidera'], ...(showStatus && !uf ? [['situacao', 'Situação']] : []), ['apurado', '% apurado']]}/>
-      </div>
-    </header>
+  const hint = uf ? (municipality ? `${municipality.name} · ${stateName(uf)}` : `${verb} em um município para ver o resultado dele.`) : `${verb} em um estado para abrir os resultados dele.`;
+  const controls = html`<${Segmented} label="Cor do mapa" value=${metric === 'situacao' && (!showStatus || uf) ? 'lider' : metric} onChange=${setMetric}
+    options=${[['lider', 'Quem lidera'], ...(showStatus && !uf ? [['situacao', 'Situação']] : []), ['apurado', '% apurado']]}/>`;
+  return html`<section class=${'card map-card' + (compact ? ' is-compact' : '')} aria-label=${`${title}. ${hint}`}>
+    ${compact ? html`<div class="map-controls map-overlay">${controls}</div>`
+      : html`<header class="card-head">
+      <div><h2>${title}</h2><p>${hint}</p></div>
+      <div class="map-controls">${controls}</div>
+    </header>`}
     <div class="map-area">
       <${ElectionMap} geo=${geo} theme=${theme} unit=${effectiveUnit} metric=${metric} paint=${paint}
         results=${results} stateResults=${states} uf=${uf && uf !== 'ZZ' ? uf : null} municipality=${municipality}
