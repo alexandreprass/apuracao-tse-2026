@@ -7,8 +7,8 @@
 }
 
 /*
- * Neutrals carry the interface; blue and red are reserved for the two
- * candidacies, so no control or decoration borrows a party colour.
+ * Neutrals carry the interface; colours belong to the parties (src/lib/color.js),
+ * so no control or decoration borrows a party colour.
  * --bg is duplicated in src/map/mapTheme.js for the canvas.
  */
 :root {
@@ -46,8 +46,6 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 160ms;
 
-  --blue: #4162e2;
-  --red: #ee2d35;
 }
 
 :root,
@@ -85,5 +83,3 @@
   --shadow: 0 16px 48px oklch(0.2 0.02 262 / 0.18);
 }
 
-.tone-blue { --tone: var(--blue); --tone-text: var(--blue-text); }
-.tone-red { --tone: var(--red); --tone-text: var(--red-text); }

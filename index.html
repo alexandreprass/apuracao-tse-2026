@@ -4,9 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#101216" />
-    <title>Apuração 2026 · dados do TSE</title>
-    <meta name="description" content="Mapa da apuração de 2026 com boletins oficiais do TSE. Presidente por município; demais cargos por estado." />
+    <title>Apuração 2026 — resultados oficiais do TSE, 1º e 2º turno</title>
+    <meta name="description" content="Resultados oficiais das eleições de 2026 com dados do TSE: votos e percentuais de cada candidato, mapa por estado e município, comparecimento, abstenção, brancos e nulos, 1º e 2º turno." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://alexandreprass.github.io/apuracao-tse-2026/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Apuração 2026" />
+    <meta property="og:title" content="Apuração 2026 — resultados oficiais do TSE" />
+    <meta property="og:description" content="Votos, percentuais, mapa por estado e município e o 2º turno ao vivo, com dados do TSE." />
+    <meta property="og:url" content="https://alexandreprass.github.io/apuracao-tse-2026/" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231c7ed6'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/data/tse/1/presidente.json" as="fetch" crossorigin />
+    <link rel="preconnect" href="https://resultados.tse.jus.br" crossorigin />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebSite","name":"Apuração 2026","inLanguage":"pt-BR","url":"https://alexandreprass.github.io/apuracao-tse-2026/","description":"Resultados oficiais das eleições gerais de 2026 com dados do Tribunal Superior Eleitoral."}
+    </script>
     <script>
       // Apply the saved or system theme before first paint (mirrors src/hooks/useTheme.js).
       (function () {
@@ -18,7 +33,8 @@
     </script>
   </head>
   <body>
-    <div id="app"><p class="boot-loading">Carregando o mapa…</p></div>
+    <div id="app"><p class="boot-loading">Carregando resultados oficiais do TSE…</p></div>
+    <noscript><p style="padding:24px;font-family:sans-serif">Este site precisa de JavaScript para mostrar os resultados. Os resultados oficiais também estão em <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</p></noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
