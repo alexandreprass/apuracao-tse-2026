@@ -113,3 +113,15 @@ test('paleta: nenhuma cor de partido fixa no código fora de src/lib/parties.js'
   assert.deepEqual(hits, []);
   assert.equal(partyColor('PT'), '#dc2630');
 });
+
+test('text sizes: nothing below the 12px design minimum (tokens and loose px values)', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../src/styles/', import.meta.url);
+  for (const f of readdirSync(dir)) {
+    const css = readFileSync(new URL(f, dir), 'utf8');
+    for (const [, v, unit] of css.matchAll(/(?:font-size|--text-[a-z]+)\s*:\s*([\d.]+)(px|rem)/g)) {
+      const px = unit === 'rem' ? Number(v) * 16 : Number(v);
+      assert.ok(px >= 12, `${f}: ${v}${unit}`);
+    }
+  }
+});

@@ -14,8 +14,8 @@
 :root {
   --font: Geist, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --text-xs: 0.6875rem;
-  --text-sm: 0.75rem;
+  --text-xs: 0.75rem; /* 12px: design minimum for any text */
+  --text-sm: 0.8125rem;
   --text-md: 0.875rem;
   --text-lg: 1.0625rem;
   --text-xl: 1.25rem;

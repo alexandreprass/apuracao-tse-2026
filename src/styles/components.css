@@ -197,7 +197,7 @@ select, input[type='search'] {
 
 .trend svg { width: 100%; height: auto; }
 .trend .axis { stroke: var(--line-strong); }
-.trend .tick { fill: var(--ink-3); font-size: 11px; }
+.trend .tick { fill: var(--ink-3); font-size: var(--text-xs); }
 .trend figcaption { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); margin-top: 6px; }
 .trend figcaption span { display: inline-flex; align-items: center; gap: 6px; }
 
