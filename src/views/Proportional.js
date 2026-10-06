@@ -89,7 +89,7 @@ function Overview({ route, geo, theme, index, office }) {
       })}
     </div>`;
   return html`<${Dashboard} title=${`${OFFICES[office].plural} · Brasil · 1º turno`} strip=${strip}
-    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} scoreboard=${scoreboard} scoreFill
+    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} infoSidebar scoreboard=${scoreboard} scoreFill
     footer=${html`<${SiteFooter} round=${1}/>`}/>`;
 }
 
@@ -123,7 +123,7 @@ function StateRace({ route, geo, theme, office, uf, feed }) {
     detalhes: { title: `Participação e votos · ${stateName(uf)}`, content: html`<${Metrics} result=${result}/>` },
   };
   return html`<${Dashboard} title=${`${label} · ${stateName(uf)} · 1º turno`} strip=${strip}
-    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} scoreboard=${scoreboard} scoreFill
+    crumbs=${html`<${Breadcrumb} route=${route} geo=${geo}/>`} map=${map} info=${info} infoSidebar scoreboard=${scoreboard} scoreFill
     drawer=${drawer && drawers[drawer]} onCloseDrawer=${() => setDrawer(null)}
     footer=${html`<${SiteFooter} feed=${feed.feed} round=${1}/>`}/>`;
 }

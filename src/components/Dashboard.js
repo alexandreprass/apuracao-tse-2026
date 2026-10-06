@@ -12,7 +12,7 @@ import { ElectedBadge, Photo, StatusBadge } from './ui.js';
  * panel does; on phones it stacks, with the scoreboard as the first tab and the top two stuck under the map.
  * `tabs`: [{ id, label, content }]. `drawer`: { title, content } shown over the panel (full screen on phones).
  */
-export function Dashboard({ title, strip, crumbs, map, info, scoreboard, extra, leaders, tabs = [], drawer, onCloseDrawer, footer, scoreLabel = 'Placar', className = '', scoreFill = false }) {
+export function Dashboard({ title, strip, crumbs, map, info, infoSidebar = false, scoreboard, extra, leaders, tabs = [], drawer, onCloseDrawer, footer, scoreLabel = 'Placar', className = '', scoreFill = false }) {
   const wide = useMediaQuery('(min-width: 720px)');
   const all = wide || !scoreboard ? tabs : [{ id: 'placar', label: scoreLabel, content: html`${scoreboard}${extra}` }, ...tabs];
   const [active, setActive] = useState(all[0]?.id);
@@ -24,15 +24,16 @@ export function Dashboard({ title, strip, crumbs, map, info, scoreboard, extra, 
     return () => removeEventListener('keydown', onKey);
   }, [drawer]);
   const showTabs = !scoreFill && all.length > 0;
-  return html`<div class=${'dash' + (className ? ' ' + className : '') + (scoreFill ? ' is-candidates' : '')}>
+  return html`<div class=${'dash' + (className ? ' ' + className : '') + (scoreFill ? ' is-candidates' : '') + (infoSidebar ? ' is-info-sidebar' : '')}>
     <h1 class="sr-only">${title}</h1>
-    <section class=${'dash-map' + (info ? ' has-info' : '')} aria-label="Mapa e apuração">
+    ${infoSidebar && info && html`<aside class="dash-info-side" aria-label="Informações do mapa">${info}</aside>`}
+    <section class=${'dash-map' + (info && !infoSidebar ? ' has-info' : '')} aria-label="Mapa e apuração">
       ${strip && html`<div class="dash-strip">${strip}</div>`}
       <div class="dash-stage">
         ${crumbs && html`<div class="dash-crumbs">${crumbs}</div>`}
         ${map}
       </div>
-      ${info && html`<div class="dash-info">${info}</div>`}
+      ${info && !infoSidebar && html`<div class="dash-info">${info}</div>`}
     </section>
     ${!wide && leaders?.length > 0 && html`<div class="dash-leaders" aria-label="Os dois primeiros">${leaders.slice(0, 2).map(c => html`<span key=${c.n}>
       <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span class="dash-leader-name">${titleCase(c.name)}</span><b>${pct(c.pct)}</b></span>`)}</div>`}

@@ -210,7 +210,7 @@ function StateRacesOverview({ data, round, office, geo, theme, route, crumbs, fe
     })}
   </div>`;
   return html`<${Dashboard} title=${`${label} · Brasil · ${ROUNDS[round].label}`} strip=${strip} crumbs=${crumbs} map=${map}
-    info=${info} scoreboard=${scoreboard} scoreFill footer=${html`<${SiteFooter} feed=${feed} round=${round}/>`}/>`;
+    info=${info} infoSidebar scoreboard=${scoreboard} scoreFill footer=${html`<${SiteFooter} feed=${feed} round=${round}/>`}/>`;
 }
 
 /** Runoff not published yet for a state office: the states that have one, one matchup per line. */

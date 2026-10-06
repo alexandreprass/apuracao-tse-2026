@@ -235,3 +235,18 @@ main:has(> .dash) > .site-footer { display: none; }
 .dash .race-list li { padding: 4px 0; font-size: var(--text-sm); }
 .dash .race-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2); align-items: center; }
 .dash .race-list li > span { white-space: normal; overflow: visible; line-height: 1.3; }
+/* Proportional election pages: party/state information sits beside the map. */
+.dash-info-side { order: 2; min-width: 0; min-height: 0; overflow: auto; padding: var(--space-3); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--space-3); }
+.dash.is-info-sidebar .dash-map { order: 1; }
+.dash.is-info-sidebar .dash-info-side { order: 2; }
+.dash.is-info-sidebar .dash-leaders { order: 3; }
+.dash.is-info-sidebar .dash-panel { order: 4; }
+@media (min-width: 720px) {
+  .dash.is-info-sidebar { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+  .dash.is-info-sidebar .dash-info-side { grid-column: 1; grid-row: 1; border-top: 0; border-right: 1px solid var(--line); }
+  .dash.is-info-sidebar .dash-map { grid-column: 2; grid-row: 1; }
+  .dash.is-info-sidebar .dash-panel { grid-column: 3; grid-row: 1; }
+}
+@media (min-width: 1024px) {
+  .dash.is-info-sidebar { grid-template-columns: 280px minmax(0, 1fr) 360px; }
+}
