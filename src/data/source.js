@@ -147,9 +147,10 @@ export async function liveOffice(round, office, previous = null) {
   }
   const ufs = round > 1 && !federal ? await runoffUfs(office) : UFS;
   const allPlaces = placesOf(office, ufs).filter(p => p !== 'br');
-  // State offices before the polls close, while nothing was seen yet: one state stands in for the
-  // others (like the national file for president), so a waiting page costs 1 request, not 7 or 27.
-  if (!federal && !seenBefore && !roundStarted(round) && allPlaces.length > 1) {
+  // State offices before the polls close (PR #1's pollsClosed, the same switch as the 5 min → 30 s cadence),
+  // while nothing was seen yet: one state stands in for the others (like the national file for president),
+  // so a waiting page costs 1 request, not 7 or 27.
+  if (!federal && !seenBefore && !pollsClosed(round) && allPlaces.length > 1) {
     const probe = await getJson(tseResultUrl(round, office, allPlaces[0]), { fresh: true }); // throws Unavailable
     if (!probe) throw new NotPublished('O TSE ainda não publicou resultados deste turno.');
   }
@@ -373,8 +374,6 @@ export function load2022(path) {
   if (!cache2022.has(path)) cache2022.set(path, getJson(bundleUrl(`2022/${path}`)).catch(() => null));
   return cache2022.get(path);
 }
-
-export const roundStarted = round => pollsClosed(round);
 
 /** For tests: forget every in-memory cache. */
 export function resetCaches() { codesCache.clear(); runoffCache.clear(); indexCache.clear(); packCache.clear(); cache2022.clear(); }

@@ -213,7 +213,7 @@ function StateRunoffWaiting({ office, first, data }) {
           candidate=${{ ...c, status: '2º turno', kind: 'segundo-turno' }} note=${`1º turno: ${pct(c.pct)}`}/>`)}
       </article>`)}</div>
       <p class="muted small">Só aparecem os estados em que o TSE indicou 2º turno. Os votos surgem aqui sozinhos quando o TSE publicar o primeiro boletim
-        (o site confere a cada 5 minutos, a cada minuto no dia da eleição e a cada ${Math.round(POLL_LIVE_MS / 1000)} segundos se o TSE não responder).
+        (o site confere a cada ${Math.round(POLL_WAITING_MS / 60_000)} minutos até as urnas fecharem, às 17h de ${ROUNDS[2].date}, e a cada ${Math.round(POLL_LIVE_MS / 1000)} segundos depois disso ou se o TSE não responder).
         Nos outros ${27 - list.length} estados o governador foi eleito no 1º turno.</p>
     </${Section}>
   </div>`;

@@ -145,3 +145,22 @@ test('2º turno for governors: a state without the TSE runoff mark in the 1º tu
   await loadOffice(2, 'governador');
   assert.ok(asked.length > 0 && !asked.includes('es'), asked.join());
 });
+
+test('governor cadence follows PR #1 pollsClosed: 5 min before 17h of 25/10, 30 s after, 30 s retry on failure', async () => {
+  const { pollDelay } = await import('../src/data/feed.js');
+  const before = Date.parse('2026-10-25T19:55:00Z'), after = Date.parse('2026-10-25T20:00:00Z');
+  assert.equal(pollDelay({ status: 'not-published' }, 2, before), 5 * 60_000);
+  assert.equal(pollDelay({ status: 'not-published' }, 2, after), 30_000);
+  assert.equal(pollDelay({ status: 'error' }, 2, before), 30_000);
+  // After the polls close, the probe stops: every runoff state is asked for.
+  resetCaches();
+  const asked = [];
+  const twoRaces = ok({ uf: { RJ: { candidates: [{ kind: 'segundo-turno' }] }, AM: { candidates: [{ kind: 'segundo-turno' }] } } });
+  mockFetch({ tse: async url => { asked.push(url.match(/dados\/(\w\w)\//)?.[1]); return status(404); },
+    local: async url => (url.includes('tse/1/governador.json') ? twoRaces : status(404)) });
+  const realNow = Date.now;
+  Date.now = () => after;
+  try { await loadOffice(2, 'governador'); } finally { Date.now = realNow; }
+  assert.deepEqual(asked.filter(Boolean).sort(), ['am', 'rj']);
+  assert.ok(!/roundStarted/.test(readFileSync(new URL('../src/data/source.js', import.meta.url), 'utf8')), 'one shared helper: pollsClosed');
+});
