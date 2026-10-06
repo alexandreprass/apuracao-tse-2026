@@ -16,14 +16,17 @@ export function Breadcrumb({ route, geo, allowExterior = false, ufs = null }) {
         ${municipality && html`<li><span aria-current="page">${municipality.name}</span></li>`}
       </ol>
     </nav>
-    <label class="state-picker">
-      <span class="sr-only">Escolher estado</span>
-      <select value=${uf || ''} onChange=${e => route.go({ uf: e.currentTarget.value || null, ibge: null })}>
-        <option value="">${OFFICES[office].proportional ? 'Escolha um estado' : ufs ? `Brasil (${ufs.length} estados com 2º turno)` : 'Brasil (todos os estados)'}</option>
-        ${runoffPickerUfs(ufs, uf).map(code => html`<option key=${code} value=${code}>${STATES[code][0]} (${code})</option>`)}
-        ${allowExterior && html`<option value="ZZ">Exterior</option>`}
-      </select>
-    </label>
+    <div class="place-state-actions">
+      ${uf && html`<a class="button is-small back-to-brazil" href=${base}>Voltar</a>`}
+      <label class="state-picker">
+        <span class="sr-only">Escolher estado</span>
+        <select value=${uf || ''} onChange=${e => route.go({ uf: e.currentTarget.value || null, ibge: null })}>
+          <option value="">${OFFICES[office].proportional ? 'Escolha um estado' : ufs ? `Brasil (${ufs.length} estados com 2º turno)` : 'Brasil (todos os estados)'}</option>
+          ${runoffPickerUfs(ufs, uf).map(code => html`<option key=${code} value=${code}>${STATES[code][0]} (${code})</option>`)}
+          ${allowExterior && html`<option value="ZZ">Exterior</option>`}
+        </select>
+      </label>
+    </div>
   </div>`;
 }
 

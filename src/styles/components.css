@@ -60,6 +60,8 @@ a { color: var(--blue-text); }
 .card-head p { color: var(--ink-3); font-size: var(--text-sm); }
 
 .place-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.place-state-actions { display: inline-flex; align-items: center; gap: var(--space-2); }
+.back-to-brazil { flex: none; white-space: nowrap; }
 .breadcrumb ol { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--text-sm); }
 .breadcrumb li + li::before { content: '›'; margin-right: 6px; color: var(--ink-3); }
 .breadcrumb a { color: var(--ink-2); }
