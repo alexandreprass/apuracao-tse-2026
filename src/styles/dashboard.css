@@ -250,3 +250,17 @@ main:has(> .dash) > .site-footer { display: none; }
 @media (min-width: 1024px) {
   .dash.is-info-sidebar { grid-template-columns: 280px minmax(0, 1fr) 360px; }
 }
+
+/* Candidate pairs use stacked rows so names and percentages stay readable. */
+.dash .race-candidates li { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
+.race-candidate-pair { display: grid; gap: 6px; min-width: 0; }
+.race-candidate-pair > span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; line-height: 1.35; }
+.placement-label { flex: none; color: var(--ink-3); font-size: var(--text-xs); font-weight: 600; }
+.state-candidates { display: grid; gap: 6px; min-width: 220px; }
+.state-candidate { display: grid; grid-template-columns: auto 8px minmax(0, 1fr) auto; align-items: baseline; gap: 4px 6px; }
+.state-candidate .placement-label { white-space: nowrap; }
+.state-candidate .swatch { align-self: center; }
+.state-candidate > span { min-width: 0; }
+.state-candidate > span small { color: var(--ink-3); }
+.state-candidate-pct { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.state-candidate.is-empty { color: var(--ink-3); }
