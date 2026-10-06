@@ -53,12 +53,14 @@ export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus
     second: x => x.r.candidates[1]?.pct || 0, status: x => raceStatus(x.r),
   });
   const row = ({ uf, r }, label) => html`<tr key=${uf}>
-    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || stateName(uf)}</button> <small class="muted">${uf === 'ZZ' ? '' : uf}</small>
+    <th scope="row"><button class="link-button" onClick=${() => onState(uf)}>${label || (uf === 'ZZ' ? 'Exterior' : uf)}</button>
       ${staleUfs?.includes(uf) && html` <${StaleTag} updated=${r.updated} short/>`}</th>
-    <td><${Who} c=${r.candidates[0]}/></td>
-    <td class="num">${pct(r.candidates[0]?.pct || 0)}</td>
-    <td><${Who} c=${r.candidates[1]}/></td>
-    <td class="num">${pct(r.candidates[1]?.pct || 0)}</td>
+    <td><div class="state-candidates">${[0, 1].map((index) => {
+      const c = r.candidates[index];
+      return c ? html`<span class="state-candidate" key=${index}><b class="placement-label">${index === 0 ? '1º colocado' : '2º colocado'}</b>
+        <i class="swatch" style=${{ background: partyColor(c.party) }}></i><span>${titleCase(c.name)} <small>${c.party}</small></span><b class="state-candidate-pct">${pct(c.pct || 0)}</b></span>`
+        : html`<span class="state-candidate is-empty" key=${index}><b class="placement-label">${index === 0 ? '1º colocado' : '2º colocado'}</b><span>—</span></span>`;
+    })}</div></td>
     <td class="num">${pp(marginPoints(r))}</td>
     ${showStatus && html`<td><${RaceBadge} result=${r} round=${round}/></td>`}
     <td class="num">${pct(r.sections.pct)}</td>
@@ -76,10 +78,10 @@ export function StatesTable({ data, onState, exterior, staleUfs = [], showStatus
     </div>
     <div class="table-wrap"><table class="data-table">
       <caption class="sr-only">Resultado por estado</caption>
-      <thead><tr>${header('uf', 'Estado')}<th scope="col">1º colocado</th>${header('lead', '%', 'num')}<th scope="col">2º colocado</th><th scope="col" class="num">%</th>
+      <thead><tr>${header('uf', 'UF')}<th scope="col">Candidatos</th>
         ${header('margin', 'Diferença', 'num')}${showStatus && header('status', 'Situação')}${header('count', 'Apurado', 'num')}${header('turnout', 'Comparec.', 'num')}${header('electorate', 'Eleitorado', 'num')}</tr></thead>
       <tbody>${sorted.map(x => row(x))}</tbody>
-      ${exterior && html`<tbody class="exterior-row"><tr><th colspan=${showStatus ? 10 : 9} scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
+      ${exterior && html`<tbody class="exterior-row"><tr><th colspan=${showStatus ? 7 : 6} scope="rowgroup" class="group-head">Fora do Brasil</th></tr>${row({ uf: 'ZZ', r: exterior }, 'Exterior')}</tbody>`}
     </table></div>`;
 }
 
