@@ -3,13 +3,24 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      atualizar_dados:
+        description: 'Baixar de novo os arquivos oficiais do TSE antes de publicar (1 ou 2 = turno; vazio = não)'
+        required: false
+        default: ''
+  # Noite do 2º turno (25/10, das 17h às 23h40 de Brasília = 20h–02h40 UTC): a cada 20 minutos,
+  # guarda uma cópia dos resultados no próprio site, como reserva caso o TSE fique fora do ar.
+  # São no máximo 3 publicações por hora (o limite do Pages é ~10) e nada é commitado no git.
+  schedule:
+    - cron: '*/20 20-23 25 10 *'
+    - cron: '*/20 0-2 26 10 *'
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -23,6 +34,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Atualizar cópia dos resultados do TSE
+        if: github.event_name == 'schedule' || github.event.inputs.atualizar_dados != ''
+        run: |
+          ROUND="${{ github.event.inputs.atualizar_dados }}"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            [ "$(date -u +%Y)" = "2026" ] || { echo "Fora de 2026, nada a fazer."; exit 0; }
+            ROUND=2
+          fi
+          node scripts/fetch-tse.mjs --round "$ROUND" || echo "::warning::Não foi possível baixar os dados do TSE; publicando a cópia anterior."
+      - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

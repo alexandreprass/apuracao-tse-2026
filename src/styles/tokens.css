@@ -7,8 +7,8 @@
 }
 
 /*
- * Neutrals carry the interface; blue and red are reserved for the two
- * candidacies, so no control or decoration borrows a party colour.
+ * Neutrals carry the interface; colours belong to the parties (src/lib/color.js),
+ * so no control or decoration borrows a party colour.
  * --bg is duplicated in src/map/mapTheme.js for the canvas.
  */
 :root {
@@ -46,8 +46,6 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 160ms;
 
-  --blue: #4162e2;
-  --red: #ee2d35;
 }
 
 :root,
@@ -66,6 +64,11 @@
   --other: oklch(0.36 0.008 262);
   --backdrop: oklch(0 0 0 / 0.6);
   --shadow: 0 16px 48px oklch(0 0 0 / 0.5);
+  /* "TSE indisponível / boletim atrasado": amber, never red (red is a party colour). */
+  --warn-bg: oklch(0.29 0.06 75);
+  --warn-ink: oklch(0.88 0.12 82);
+  --warn-line: oklch(0.62 0.13 75);
+  --line-input: oklch(0.52 0.01 262);
 }
 
 :root[data-theme='light'] {
@@ -83,7 +86,9 @@
   --other: oklch(0.84 0.006 262);
   --backdrop: oklch(0.2 0.02 262 / 0.35);
   --shadow: 0 16px 48px oklch(0.2 0.02 262 / 0.18);
+  --warn-bg: oklch(0.96 0.045 85);
+  --warn-ink: oklch(0.43 0.10 62);
+  --warn-line: oklch(0.60 0.14 68);
+  --line-input: oklch(0.62 0.01 262);
 }
 
-.tone-blue { --tone: var(--blue); --tone-text: var(--blue-text); }
-.tone-red { --tone: var(--red); --tone-text: var(--red-text); }

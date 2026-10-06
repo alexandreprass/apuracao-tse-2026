@@ -44,7 +44,7 @@
 .state-label span,
 .state-callout span {
   font-weight: 500;
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .state-label {
@@ -155,4 +155,13 @@
     min-width: 28px;
     padding-inline: 4px;
   }
+}
+
+/* Small maps: tighter labels so neighbouring states (Nordeste, DF/GO) do not overlap. */
+.state-labels.is-narrow .state-label { padding: 1px; font-size: 10px; }
+.state-labels.is-narrow .state-callout { font-size: 10px; height: 17px; }
+
+/* Phones: the zoom buttons move to the left so they do not cover the ES/RJ callouts on the right. */
+@media (max-width: 519px) {
+  .national-map .zoom-controls { left: var(--space-2); right: auto; }
 }

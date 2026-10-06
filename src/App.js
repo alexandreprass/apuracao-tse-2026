@@ -1,122 +1,135 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { html } from './lib/html.js';
-import { buildTrend, recentUpdates, stateFlips } from './data/history.js';
-import { buildSnapshot, OFFICES, STATES, zoneResults } from './data/mocks.js';
-import { useClock } from './hooks/useClock.js';
-import { useHistory } from './hooks/useHistory.js';
+import { ENABLED_OFFICES, OFFICES, ROUNDS, TSE_SITE } from './config.js';
+import { runoffCandidates, shareText } from './data/analysis.js';
+import { useMyMunicipality } from './hooks/useMyMunicipality.js';
+import { useOffice } from './hooks/useData.js';
 import { useHotkey } from './hooks/useHotkey.js';
-import { useMediaQuery } from './hooks/useMediaQuery.js';
 import { useRoute } from './hooks/useRoute.js';
 import { useTheme } from './hooks/useTheme.js';
-import { exportMap } from './map/exportMap.js';
-import { Insights } from './components/Insights.js';
-import { MapStage } from './components/MapStage.js';
-import { Scoreboard } from './components/Scoreboard.js';
+import { OfficeTabs, StatusBar, TopBar } from './components/Header.js';
 import { SearchDialog } from './components/SearchDialog.js';
-import { SidePanel } from './components/SidePanel.js';
-import { TopBar } from './components/TopBar.js';
+import { Loading, Notice, Section } from './components/ui.js';
+import { placeTitle } from './components/Place.js';
+import { MajoritarianView } from './views/Majoritarian.js';
+import { useGeography } from './map/useGeography.js';
 
-// The capital's presidential zones have hand-set shares, so the state calibration skips it.
-const FIXED_CAPITAL = '3550308';
-// Mirrors styles/layout.css: three columns when wide, a bottom sheet when narrow.
-const WIDE_LAYOUT = '(min-width: 1440px)';
-const SHEET_LAYOUT = '(max-width: 999px)';
-const FLIP_HIGHLIGHT_MS = 2500;
-const NO_FLIPS = new Set();
-
-/** States that changed hands since the previous snapshot, kept for a moment so the map can outline them. */
-function useFlipped(states, office) {
-  const [flipped, setFlipped] = useState(NO_FLIPS);
-  const previous = useRef(null), timer = useRef();
-
-  useEffect(() => {
-    const winners = Object.fromEntries(Object.entries(states).map(([uf, result]) => [uf, result.winner]));
-    const before = previous.current;
-    previous.current = { office, winners };
-    if (!before || before.office !== office) return;
-    const changed = Object.keys(winners).filter(uf => winners[uf] !== before.winners[uf]);
-    if (!changed.length) return;
-    setFlipped(new Set(changed));
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setFlipped(NO_FLIPS), FLIP_HIGHLIGHT_MS);
-  }, [states]);
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  return flipped;
+function About() {
+  return html`<${Section} title="Sobre os dados" className="prose">
+    <p>Todos os números vêm dos arquivos públicos de resultados do Tribunal Superior Eleitoral, em
+      <a href=${TSE_SITE} target="_blank" rel="noopener">resultados.tse.jus.br</a>, os mesmos usados pelo app Resultados do TSE.
+      Nenhum resultado é estimado nem simulado. A única estimativa do site é a do quadro “Dá pra virar?” no 2º turno
+      (votos que ainda faltam apurar), sempre marcada como estimativa; quem está eleito vem só da situação publicada pelo TSE.</p>
+    <ul class="bullets">
+      <li><b>1º turno (04/10/2026):</b> a totalização terminou, então o site usa uma cópia dos arquivos oficiais guardada junto com ele
+        (mais rápido e não depende do TSE). Para ler direto do TSE, abra o site com <code>?fonte=tse</code> no endereço.</li>
+      <li><b>2º turno (25/10/2026):</b> o site consulta o TSE ao vivo. Antes da apuração ele confere a cada 5 minutos; quando as urnas fecham
+        (17h de Brasília) passa a conferir a cada 30 segundos e, assim que o primeiro boletim sair, mostra os votos e segue se atualizando a cada 30 segundos. A tela só é redesenhada quando o TSE publica um boletim novo.</li>
+      <li><b>Se o TSE ficar fora do ar:</b> o site mantém o último boletim recebido (ou a cópia guardada aqui, se for mais nova), avisa no topo de quando são os números e continua tentando a cada 30 segundos.</li>
+      <li><b>Evolução da apuração</b> e <b>meu município</b> ficam guardados só neste navegador (localStorage); nada é enviado a nenhum servidor.</li>
+      <li>Percentuais de candidatos são sobre os votos válidos. Comparecimento e abstenção são sobre o eleitorado apto.</li>
+      <li>O horário “Atualizado pelo TSE” é o da última totalização informada pelo próprio TSE, em horário de Brasília.</li>
+      <li>Fotos dos candidatos: servidor de resultados do TSE. Malha municipal: IBGE.</li>
+    </ul>
+  </${Section}>`;
 }
 
-export function App({ geo }) {
-  const route = useRoute(geo);
-  const clock = useClock(route.replay, minute => route.setReplay(minute == null ? null : Math.round(minute)));
+function ComingSoon({ what }) {
+  return html`<${Notice} title="Em breve">${what} chega na próxima etapa do site. Por enquanto, veja <a href="#/1turno/presidente">Presidente</a>.</${Notice}>`;
+}
+
+function useToast() {
+  const [message, setMessage] = useState(null);
+  useEffect(() => { if (!message) return; const t = setTimeout(() => setMessage(null), 2600); return () => clearTimeout(t); }, [message]);
+  return [message, setMessage];
+}
+
+export function App() {
+  const route = useRoute();
   const [theme, toggleTheme] = useTheme();
   const [searching, setSearching] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const wide = useMediaQuery(WIDE_LAYOUT), asSheet = useMediaQuery(SHEET_LAYOUT);
-  const stage = useRef();
+  const [toast, setToast] = useToast();
+  const enabled = ENABLED_OFFICES.includes(route.office);
+  const officeState = useOffice(route.round, enabled ? route.office : 'presidente');
+  const needsMap = (route.page === 'resultados' && enabled) || !!searching;
+  const { geo, error: geoError, retry: retryGeo } = useGeography(needsMap);
+  const presidents = useOffice(1, 'presidente');
 
-  const { uf, office } = route;
-  const municipality = route.municipalityId ? geo.byId.get(route.municipalityId) : null;
-  const snapshot = useMemo(() => buildSnapshot(geo, clock.minute, office), [geo, clock.minute, office]);
-  const zoneRows = useMemo(() => {
-    const geometry = municipality && geo.zonesFor(municipality.id);
-    if (!geometry) return null;
-    const fixed = municipality.id === FIXED_CAPITAL && office === OFFICES[0];
-    return zoneResults(municipality, geometry, clock.minute, office, fixed ? 0 : snapshot.adjustments[municipality.uf]);
-  }, [geo, municipality, snapshot]);
+  const title = route.page === 'resultados'
+    ? `${OFFICES[route.office].label} · ${placeTitle(route, geo)} · ${ROUNDS[route.round].label}`
+    : route.page === 'sobre' ? 'Sobre os dados' : 'Comparar resultados';
+  const scopeResult = useMemo(() => {
+    const d = officeState.data;
+    if (!d || d.status || route.ibge) return null;
+    return route.uf === 'ZZ' ? d.zz : route.uf ? d.uf?.[route.uf] : d.br;
+  }, [officeState.data, route.uf, route.ibge]);
 
-  const scope = municipality
-    ? { name: municipality.name, result: snapshot.results.get(municipality.id) }
-    : uf ? { name: STATES[uf][0], result: snapshot.states[uf] } : { name: 'Brasil', result: snapshot.national };
-
-  const history = useHistory(geo, office);
-  const trend = useMemo(
-    () => buildTrend(geo, history, { uf, municipality }, office, clock.minute, scope.result),
-    [geo, history, municipality, snapshot, uf],
-  );
-  const updates = useMemo(() => recentUpdates(trend, scope.result, clock.minute, { national: !uf }), [trend]);
-  const flips = useMemo(() => uf ? null : stateFlips(history, clock.minute, snapshot.states), [history, snapshot, uf]);
-  const flipped = useFlipped(snapshot.states, office);
-
-  // Picking a place from the sheet closes it, so the map underneath shows the result.
-  const navigation = {
-    ...route,
-    openState: code => { route.openState(code); setSheetOpen(false); },
-    openMunicipality: id => { route.openMunicipality(id); setSheetOpen(false); },
-  };
+  useEffect(() => {
+    document.title = `${title} | Apuração 2026 — resultados do TSE`;
+    const description = scopeResult ? shareText(scopeResult, title) : 'Resultados oficiais das eleições de 2026 com dados do TSE: votos, percentuais, mapa por estado e município, 1º e 2º turno.';
+    document.querySelector('meta[name="description"]')?.setAttribute('content', description);
+    window.scrollTo?.({ top: 0 });
+  }, [title]);
 
   useHotkey('/', event => { event.preventDefault(); setSearching(true); }, { enabled: !searching });
-  useHotkey('Escape', () => {
-    if (asSheet && sheetOpen) setSheetOpen(false);
-    else if (uf) route.back();
-  }, { enabled: !searching });
 
-  const saveMap = () => exportMap({
-    frame: stage.current,
-    theme,
-    filename: `mapa-${municipality?.id || uf || 'brasil'}-simulado.png`,
-  });
+  const share = async () => {
+    const text = scopeResult ? shareText(scopeResult, title) : title;
+    const url = location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: document.title, text, url });
+      else { await navigator.clipboard.writeText(`${text}\n${url}`); setToast('Link e resumo copiados'); }
+    } catch (error) {
+      if (error?.name !== 'AbortError') setToast('Não foi possível compartilhar. Copie o endereço da página.');
+    }
+  };
 
-  const insights = html`<${Insights} place=${scope.name} result=${scope.result} trend=${trend}
-    flips=${flips} updates=${updates} onMoment=${clock.replay}/>`;
+  const candidates = presidents.data?.br?.candidates || [];
+  const finalists = runoffCandidates(presidents.data?.br).map(c => c.n);
+  const pick = entry => {
+    if (entry.type === 'candidate') {
+      // Stay on the 2º turno when the candidate is in it; otherwise the 1º turno is where they ran.
+      const round = route.round === 2 && finalists.includes(entry.n) ? 2 : 1;
+      route.go({ page: 'resultados', round, office: 'presidente', uf: null, ibge: null, focus: entry.n });
+    }
+    else if (entry.type === 'state') route.go({ page: 'resultados', uf: entry.id, ibge: null, office: entry.id === 'ZZ' ? 'presidente' : route.office });
+    else route.go({ page: 'resultados', uf: geo?.byId.get(entry.id)?.uf, ibge: entry.id });
+  };
+  const [, saveMyMunicipality] = useMyMunicipality();
+  const pickMine = entry => { if (entry.type === 'municipality') { saveMyMunicipality(entry.id); setToast(`${entry.name} marcado como seu município`); } };
+
+  useEffect(() => {
+    if (!route.focus) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById('cand-' + route.focus);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.classList.add('is-focus');
+      setTimeout(() => el?.classList.remove('is-focus'), 2500);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [route.focus, officeState.data]);
 
   return html`<div class="app">
-    <${TopBar} office=${office} onOffice=${route.setOffice} theme=${theme} onToggleTheme=${toggleTheme}
-      onSearch=${() => setSearching(true)} onDownload=${saveMap}/>
-
-    <main>
-      <${Scoreboard} office=${office} scope=${scope.name} result=${scope.result} majorityRule=${office === OFFICES[0] && !uf}/>
-      <div class=${'workspace' + (wide ? ' is-wide' : '')}>
-        ${wide && html`<aside class="insights-column" aria-label="Andamento da apuração">${insights}</aside>`}
-        <${MapStage} stageRef=${stage} geo=${geo} snapshot=${snapshot} route=${navigation}
-          municipality=${municipality} zoneRows=${zoneRows} theme=${theme} clock=${clock} flipped=${flipped}/>
-        ${asSheet && sheetOpen && html`<div class="sheet-backdrop" onClick=${() => setSheetOpen(false)}></div>`}
-        <${SidePanel} geo=${geo} snapshot=${snapshot} route=${navigation} municipality=${municipality}
-          zoneRows=${zoneRows} theme=${theme} placeName=${scope.name} insights=${wide ? null : insights}
-          sheet=${asSheet ? { open: sheetOpen, toggle: () => setSheetOpen(open => !open) } : null}/>
-      </div>
+    <a class="skip-link" href="#conteudo">Pular para os resultados</a>
+    <${TopBar} route=${route} theme=${theme} onToggleTheme=${toggleTheme} onSearch=${() => setSearching(true)} onShare=${share}/>
+    <${OfficeTabs} route=${route}/>
+    ${route.page === 'resultados' && enabled && html`<${StatusBar} feed=${officeState.feed} round=${route.round}/>
+`}
+    <main id="conteudo" tabindex="-1">
+      ${route.page === 'sobre' ? html`<${About}/>`
+        : route.page === 'comparar' ? html`<${ComingSoon} what="A comparação entre 1º e 2º turno e com 2022"/>`
+        : !enabled ? html`<${ComingSoon} what=${`A página de ${OFFICES[route.office].plural}`}/>`
+        : geoError ? html`<${Notice} tone="error" title="O mapa não carregou">${geoError.message}${' '}<button class="button" onClick=${retryGeo}>Tentar de novo</button></${Notice}>`
+        : !geo ? html`<${Loading} text="Carregando resultados e mapa…"/>`
+        : html`<${MajoritarianView} route=${route} geo=${geo} theme=${theme} office=${officeState} onChooseMunicipality=${() => setSearching('municipio')}/>`}
     </main>
-
-    ${searching && html`<${SearchDialog} geo=${geo} onState=${navigation.openState}
-      onMunicipality=${navigation.openMunicipality} onClose=${() => setSearching(false)}/>`}
+    <footer class="site-footer">
+      <p>Fonte: <a href=${TSE_SITE} target="_blank" rel="noopener">Tribunal Superior Eleitoral (TSE)</a> · resultados oficiais; estimativas só onde estiver escrito “estimativa”.${' '}<a href="#/sobre">Sobre os dados</a></p>
+      <p class="muted">Site independente, sem vínculo com o TSE. Em caso de divergência, vale o resultado publicado pelo TSE.</p>
+    </footer>
+    ${searching && geo && (searching === 'municipio'
+      ? html`<${SearchDialog} geo=${geo} candidates=${[]} only="municipality" onPick=${pickMine} onClose=${() => setSearching(false)}/>`
+      : html`<${SearchDialog} geo=${geo} candidates=${candidates} onPick=${pick} onClose=${() => setSearching(false)}/>`)}
+    ${toast && html`<div class="toast" role="status">${toast}</div>`}
   </div>`;
 }

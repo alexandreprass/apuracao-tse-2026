@@ -1,128 +1,101 @@
-# open-apuracao-brazil
+# Apuração 2026
 
-![Painel de apuração com o mapa do Brasil por município, placar, gráfico da apuração e lista de estados](docs/screenshot.png)
+Site estático (GitHub Pages) com os **resultados oficiais das eleições gerais de 2026**, lidos dos arquivos públicos do
+Tribunal Superior Eleitoral em [resultados.tse.jus.br](https://resultados.tse.jus.br). Nada é estimado ou simulado:
+quando o TSE ainda não publicou um resultado, o site diz isso e não mostra números.
 
-Painel interativo de apuração eleitoral do Brasil: um mapa navegável por estado, município e zona eleitoral, com placar, linha do tempo e andamento da contagem.
+Publicado em: https://alexandreprass.github.io/apuracao-tse-2026/
 
-> [!WARNING]
-> **Todos os resultados são simulados.** Votos, percentuais, comparecimento e ritmo de apuração são gerados no navegador por um modelo determinístico. O projeto não consulta o TSE nem qualquer serviço eleitoral, e nada aqui representa o resultado de uma eleição real. Os nomes de candidatos servem só para dar forma à interface.
+## O que tem (etapa 1 · Presidente)
 
-## O que tem
+- **1º turno (04/10/2026)** com os números oficiais finais: votos e percentual de cada um dos 12 candidatos, foto, número,
+  partido, coligação, vice e situação (2º turno / não eleito).
+- **Apuração e participação:** % de seções apuradas, eleitorado, comparecimento, abstenção, válidos, brancos e nulos.
+- **Mapa interativo** do Brasil por estado e, dentro de cada estado, por município (5.570 municípios), colorido pelo partido
+  de quem lidera e pela vantagem, ou pelo % apurado. Clique num estado ou município para abrir o resultado dele.
+- **Tabelas** por estado (com o **exterior separado**) e por município, com busca, filtro por região ou partido e ordenação.
+- **Votos por região**, estados vencidos por candidato.
+- **2º turno (25/10/2026)** pronto: mostra os finalistas, contagem regressiva e confere o TSE sozinho (a cada 5 minutos até
+  as urnas fecharem às 17h de Brasília, depois a cada 30 s); quando sai o primeiro boletim, os votos aparecem e passam a se atualizar a cada 30 s (com gráfico da evolução desde que a página foi aberta).
+- **Busca** (tecla `/`) por candidato, número, estado, município ou “exterior”; **compartilhar** (link + resumo);
+  **tema claro/escuro**; links diretos para qualquer recorte.
+- Governadores, Senado, Deputados e Comparações aparecem como “em breve” (próximas etapas). Os arquivos oficiais desses
+  cargos já são baixados pelo script de dados.
 
-- **Mapa em três níveis.** Brasil, os municípios de um estado e as zonas eleitorais de um município (as 57 da capital paulista, por exemplo). São 5.570 municípios desenhados em Canvas 2D, com zoom, arraste e pinça.
-- **Modos de mapa.** Recorte por estados, por municípios ou por eleitorado (um círculo por município, com área proporcional ao número de eleitores). Cor por quem lidera e com que vantagem, ou por quanto já foi apurado.
-- **Placar do recorte aberto.** Mostra sempre o lugar que você está vendo e responde "ainda pode virar?" comparando os votos que faltam com a diferença atual. Para presidente, diz também se haverá 2º turno.
-- **Linha do tempo.** Volte a qualquer minuto entre 17h e 23h, ou acompanhe "ao vivo" a simulação avançando.
-- **Andamento.** Gráfico do percentual de cada candidato conforme as seções entram, participação, estados que viraram de lado e os últimos boletins. Clicar num ponto do gráfico leva o mapa àquele momento.
-- **Busca** por estado ou município (tecla `/`), **tema claro e escuro** e **download do mapa** em PNG.
-- **Tudo na URL.** Lugar, cargo, horário e modo do mapa fazem parte do link, e o botão voltar do navegador sobe um nível no mapa.
-- **Responsivo.** Três colunas em telas largas, mapa e painel com abas em telas médias, e uma gaveta sobre o mapa no celular. No desktop a página não rola: o mapa ocupa a altura disponível.
+## Como os dados chegam
+
+| Turno | Fonte primária | Reserva |
+| --- | --- | --- |
+| 1º turno (finalizado) | cópia dos arquivos oficiais em `public/data/tse/1/` | TSE ao vivo |
+| 2º turno | TSE ao vivo (o servidor do TSE libera CORS para qualquer origem) | cópia em `public/data/tse/2/`, se existir |
+
+- Para forçar a fonte, use `?fonte=tse` ou `?fonte=local` no fim do endereço (ex.: `#/1turno/presidente?fonte=tse`).
+- Arquivos usados (padrão do TSE para 2026): `oficial/ele2026/<eleição>/dados/<uf>/<uf>-c<cargo>-e<eleição>-u.json`.
+  Eleições: 6257 (presidente, 1º turno), 6258 (presidente, 2º turno), 6259/6260 (cargos estaduais). Cargos: 1 presidente,
+  3 governador, 5 senador, 6 dep. federal, 7 dep. estadual, 8 dep. distrital. Fotos: `.../6257/fotos/br/<sqcand>.jpeg`.
+- Antes de pedir os resultados de um turno, o site consulta `oficial/comum/config/ele-c.json` para saber se o TSE já
+  configurou aquela eleição (evita dezenas de pedidos com erro 404).
+- O horário exibido (“Atualizado pelo TSE em…”) é o da última totalização informada pelo TSE, em horário de Brasília.
+
+### Atualizar a cópia local
+
+```sh
+npm run dados          # 1º turno: todos os cargos + presidente por município (~5.600 arquivos, ~2 min)
+npm run dados:2turno   # 2º turno (presidente e governadores), quando o TSE publicar
+npm run verificar      # compara a cópia com o TSE ao vivo (Brasil, exterior, 6 UFs, 4 capitais) e com as somas
+```
+
+O workflow `.github/workflows/pages.yml` também pode rodar o download antes de publicar: manualmente (campo
+“atualizar_dados”) e automaticamente na noite do 2º turno, a cada 20 minutos (no máximo 3 publicações por hora). Os dados
+vão só no artefato publicado; **nada é commitado no git**, para o histórico não crescer.
 
 ## Como rodar
 
-Requisitos: [Node.js](https://nodejs.org) 20.19 ou mais recente (exigência do Vite 7) e npm.
+Requisitos: Node.js 20.19+ e npm.
 
 ```sh
-git clone https://github.com/bpinheiroms/open-apuracao-brazil.git
-cd open-apuracao-brazil
-npm install
-npm run dev
+npm ci
+npm run dev        # desenvolvimento: http://127.0.0.1:5173/apuracao-tse-2026/
+npm test           # testes (Node, sem navegador)
+npm run build      # gera o site em dist/
+npm run preview    # serve dist/ em http://127.0.0.1:8080/apuracao-tse-2026/
 ```
 
-O Vite imprime o endereço local, normalmente http://127.0.0.1:5173. Não há variáveis de ambiente, chaves de API nem backend: depois de carregar os arquivos de `public/`, tudo roda no navegador.
+O caminho base `/apuracao-tse-2026/` (de `vite.config.js`) é o mesmo do GitHub Pages.
 
-| Comando | O que faz |
-| --- | --- |
-| `npm run dev` | Servidor de desenvolvimento com recarga automática |
-| `npm run build` | Gera o site estático em `dist/` |
-| `npm run preview` | Serve o conteúdo de `dist/` para conferência |
-| `npm test` | Roda os testes com o executor nativo do Node |
-
-O resultado de `npm run build` é um site estático e pode ser publicado em qualquer hospedagem de arquivos. Os caminhos são absolutos (`/data/...`, `/fonts/...`), então o site precisa ficar na raiz do domínio; para publicar numa subpasta, configure `base` no Vite.
-
-## Como usar
-
-- Clique em um estado para abrir seus municípios e em um município para abrir o recorte dele. O botão com seta acima do mapa, a tecla `Esc` e o voltar do navegador sobem um nível.
-- Acima do mapa ficam os controles de recorte (Estados, Municípios, Eleitorado) e de cor (Quem lidera, Apurado).
-- Arraste para mover. Use `+`/`−`, a roda do mouse ou a pinça para aproximar.
-- Arraste a linha do tempo para mudar o horário; "Ao vivo" volta à simulação em andamento.
-- `/` abre a busca; setas e `Enter` escolhem um resultado.
-
-### Formato da URL
+## Endereços
 
 ```
-/#SP/3550308/12?cargo=senado&hora=20h15&mapa=municipios&cor=apurado
+#/1turno/presidente                 Brasil
+#/1turno/presidente/SP              São Paulo e seus municípios
+#/1turno/presidente/SP/3550308      município (código IBGE)
+#/1turno/presidente/ZZ              exterior
+#/2turno/presidente                 2º turno
+#/sobre                             sobre os dados
 ```
-
-| Parte | Significado | Padrão |
-| --- | --- | --- |
-| `SP` | Estado aberto (sigla da UF) | Brasil |
-| `3550308` | Município aberto (código do IBGE) | nenhum |
-| `12` | Zona eleitoral selecionada | nenhuma |
-| `cargo` | `presidente`, `governadores`, `senado` ou `deputados` | `presidente` |
-| `hora` | Horário da linha do tempo, de `17h00` a `23h00` | ao vivo |
-| `mapa` | `estados`, `municipios` ou `eleitorado` | `estados` |
-| `cor` | `lider` ou `apurado` | `lider` |
-
-## Como a simulação funciona
-
-Os números saem de `src/data/mocks.js`, sem aleatoriedade: o mesmo cargo e o mesmo minuto produzem sempre o mesmo resultado.
-
-- Cada estado tem um percentual-alvo para o primeiro candidato. Os municípios variam em torno dele a partir de um hash do código do município, e uma calibração ajusta o conjunto até o estado bater no alvo.
-- A apuração segue uma curva que avança rápido no começo e tem uma cauda longa. Cada município conta num ritmo próprio, e cerca de 1 em 14 atrasa bastante.
-- As primeiras seções pendem para um dos lados e essa inclinação some até o fim da contagem. É o que dá movimento ao gráfico e faz alguns estados virarem.
-- Os totais se conservam: a soma das zonas dá o município, a dos municípios dá o estado, e a dos estados dá o Brasil. Os testes verificam isso.
-- As quatro abas de cargo são cenários diferentes do mesmo modelo, com os mesmos dois candidatos. Não representam candidaturas reais para cada cargo.
-
-As zonas eleitorais são **áreas aproximadas** a partir dos locais de votação, dentro dos limites municipais. Não são limites oficiais do TSE.
 
 ## Organização do código
 
-Preact com [htm](https://github.com/developit/htm) (sem JSX nem etapa de compilação de templates), CSS puro e Canvas 2D, empacotados com Vite.
-
 ```
-index.html             página única; aplica o tema antes da primeira pintura
-src/
-  main.js              carrega a geometria e monta o app (ou a tela de erro)
-  App.js               estado da página e composição das áreas
-  components/          TopBar, Scoreboard, MapStage, MapModes, Legend, Timeline, Insights,
-                       TrendChart, UpdatesFeed, SidePanel, PlaceRow, BackButton, SearchDialog, Icon
-  hooks/               useRoute (URL), useClock, useHistory (parciais anteriores), useTheme,
-                       useHotkey, useMediaQuery, useWidth
-  map/                 ElectionMap (desenho, clique, zoom), geography (TopoJSON e câmeras),
-                       mapTheme (cores do canvas), exportMap (PNG)
-  data/                mocks (resultados e cores), history (série, boletins, viradas),
-                       outlook ("ainda pode virar?"), clock
-  lib/                 formatação pt-BR e o binding do htm
-  styles/              tokens, base, layout, components, map
-public/
-  data/                brasil.topo.json (municípios) e zonas.json (zonas eleitorais)
-  fonts/, images/      fonte Geist e retratos
-tests/                 geometria, conservação dos votos, linha do tempo, câmeras, projeção
+src/config.js            códigos das eleições, cargos, URLs do TSE, modo da fonte, intervalos de atualização
+src/data/normalize.js    converte os JSON do TSE num formato enxuto (usado pelo site e pelo script)
+src/data/source.js       carrega do TSE ou da cópia local, com reserva
+src/data/analysis.js     contas derivadas (regiões, estados vencidos, mapa, finalistas)
+src/hooks/useData.js     carregamento + atualização automática (30 s ao vivo e depois que as urnas fecham; 5 min antes)
+src/views/Majoritarian.js página de presidente (e base para governador/senado)
+src/components/          cabeçalho, barra de status, cartões, mapa, tabelas, busca, gráfico
+src/map/                 mapa em Canvas 2D (geografia IBGE em TopoJSON)
+scripts/fetch-tse.mjs    baixa os arquivos oficiais para public/data/tse
+scripts/verify-tse.mjs   confere a cópia com o TSE
 ```
 
-Algumas decisões que ajudam a ler o código:
-
-- **O mapa é um canvas, os rótulos são HTML.** `ElectionMap` desenha os polígonos e testa cliques com `isPointInPath`; as siglas dos estados são botões posicionados por cima, para funcionarem com teclado e leitor de tela.
-- **A URL é a fonte da verdade.** `useRoute` lê e escreve lugar, cargo, horário e modo do mapa. Mudar de lugar cria uma entrada no histórico; o resto só reescreve a entrada atual.
-- **Três layouts**, descritos no topo de `src/styles/layout.css`: três colunas a partir de 1440px, mapa e painel com abas entre 1000px e 1439px, e gaveta inferior abaixo disso.
-- **Dois temas.** As cores da interface são tokens em `src/styles/tokens.css`. O canvas não lê CSS, então `src/map/mapTheme.js` espelha o fundo e define os traços de cada tema.
-- **Parciais anteriores sob demanda.** Cada ponto do gráfico exige recontar o país inteiro, então `useHistory` calcula um por vez depois da primeira pintura e guarda o resultado por cargo.
-
-## Testes
-
-```sh
-npm test
-```
-
-Os testes rodam em Node, sem navegador, e cobrem: a geometria (5.570 municípios, 27 estados, 57 zonas na capital paulista), a conservação dos votos entre os níveis, o determinismo da linha do tempo, o enquadramento das câmeras, a projeção do que falta apurar e a contagem de lugares por candidato. O desenho no canvas e a interação são conferidos manualmente no navegador.
+Preact + htm (sem etapa de compilação de templates), CSS puro e Canvas 2D, empacotados com Vite. ~31 kB de JS gzip.
 
 ## Créditos
 
-- **Malha municipal:** [IBGE](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais.html), simplificada e convertida para TopoJSON.
-- **Arquivos de dados e retratos:** `public/data/brasil.topo.json`, `public/data/zonas.json` e as imagens em `public/images/` foram obtidos de [seuimposto.com](https://seuimposto.com/) e não são de autoria deste projeto. Confira os direitos de uso antes de redistribuí-los.
-- **Fonte:** [Geist](https://vercel.com/font), da Vercel, sob a SIL Open Font License.
-
-## Licença
-
-O código deste repositório está sob a licença [MIT](LICENSE). Os arquivos listados em Créditos pertencem aos respectivos autores e não são cobertos por ela.
+- Resultados e fotos: [Tribunal Superior Eleitoral](https://resultados.tse.jus.br). Site independente, sem vínculo com o TSE;
+  em caso de divergência, vale o resultado publicado pelo TSE.
+- Malha municipal: [IBGE](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais.html), simplificada
+  em TopoJSON (`public/data/brasil.topo.json`, herdado do projeto original, que a obteve de seuimposto.com).
+- Base do mapa interativo: projeto [open-apuracao-brazil](https://github.com/bpinheiroms/open-apuracao-brazil) (MIT).
+- Fonte: [Geist](https://vercel.com/font), SIL Open Font License.

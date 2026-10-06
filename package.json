@@ -1,20 +1,23 @@
 {
-  "name": "open-apuracao-brazil",
+  "name": "apuracao-tse-2026",
   "version": "0.1.0",
   "private": true,
-  "description": "Painel interativo de apuração eleitoral do Brasil por estado, município e zona, com dados simulados.",
+  "description": "Resultados oficiais das eleições de 2026 (TSE): presidente no 1º e 2º turno, mapa por estado e município, site estático para o GitHub Pages.",
   "license": "MIT",
   "author": "Bruno Pinheiro",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bpinheiroms/open-apuracao-brazil.git"
+    "url": "git+https://github.com/alexandreprass/apuracao-tse-2026.git"
   },
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/*.test.js"
+    "preview": "vite preview --host 127.0.0.1 --port 8080",
+    "test": "node --test tests/*.test.js",
+    "dados": "node scripts/fetch-tse.mjs",
+    "dados:2turno": "node scripts/fetch-tse.mjs --round 2",
+    "verificar": "node scripts/verify-tse.mjs"
   },
   "dependencies": {
     "htm": "^3.1.1",

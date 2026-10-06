@@ -1,25 +1,42 @@
 const integer = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
-const decimal = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const decimal1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const decimal2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const int = value => integer.format(Math.round(value));
-export const percent = (ratio, digits = 1) => (digits ? decimal.format(ratio * 100) : int(ratio * 100)) + '%';
-export const points = ratio => decimal.format(ratio * 100) + ' pts';
+export const int = value => integer.format(Math.round(value || 0));
+/** Percentage from a 0–100 value, as the TSE publishes it: 47.03 → "47,03%". */
+export const pct = (value, digits = 2) => (digits === 2 ? decimal2 : digits === 1 ? decimal1 : integer).format(value || 0) + '%';
+/** Percentage from a ratio: .4703 → "47,03%". */
+export const ratio = (value, digits = 2) => pct((value || 0) * 100, digits);
+/** Difference in percentage points: 2.5 → "2,50 p.p." */
+export const pp = (value, digits = 2) => (digits === 2 ? decimal2 : decimal1).format(value || 0) + ' p.p.';
+export const points = value => (value > 0 ? '+' : value < 0 ? '−' : '') + decimal2.format(Math.abs(value || 0)) + ' p.p.';
 
 export function compact(value) {
-  if (value >= 1e6) return decimal.format(value / 1e6) + ' mi';
-  if (value >= 1e3) return int(value / 1e3) + ' mil';
+  if (value >= 1e6) return decimal1.format(value / 1e6) + ' mi';
+  if (value >= 1e3) return integer.format(value / 1e3) + ' mil';
   return int(value);
 }
 
-export const normalize = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export const signed = value => (value > 0 ? '+' : value < 0 ? '−' : '') + int(Math.abs(value));
+export const normalize = text => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-export function clockTime(seconds) {
-  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, Math.floor(seconds) % 60]
-    .map(part => String(part).padStart(2, '0')).join(':');
+/** "FLAVIO BOLSONARO" → "Flavio Bolsonaro" (the TSE publishes ballot names in capitals). */
+const LOWER = new Set(['da', 'de', 'do', 'das', 'dos', 'e']);
+export function titleCase(text) {
+  return String(text || '').toLowerCase().split(/(\s+|-|['’])/).map((word, i) =>
+    (i && LOWER.has(word)) || !word.trim() ? word : word.charAt(0).toUpperCase() + word.slice(1)).join('')
+    .replace(/(?<!\p{L})(Ii|Iii|Iv)(?!\p{L})/gu, w => w.toUpperCase());
 }
 
-/** Share of valid votes held by candidate `index`. */
-export const share = (result, index) => result.votes[index] / Math.max(1, result.valid);
-export const leaderShare = result => share(result, result.winner);
-export const marginShare = result => Math.abs(result.votes[0] - result.votes[1]) / Math.max(1, result.valid);
-export const blankShare = result => (result.blank + result.nulls) / Math.max(1, result.cast);
+export const initials = name => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/Sao_Paulo' });
+export const brasiliaTime = date => timeFormat.format(date);
+const hmFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+const dayFormat = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
+/** "12:51", or "05/10 12:51" when the date is not today (Brasília time). */
+export function brasiliaStamp(date, now = new Date()) {
+  if (!date || Number.isNaN(+date)) return '';
+  const day = dayFormat.format(date);
+  return (day === dayFormat.format(now) ? '' : day + ' ') + hmFormat.format(date);
+}
