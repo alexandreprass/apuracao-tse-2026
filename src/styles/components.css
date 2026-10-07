@@ -207,6 +207,20 @@ select, input[type='search'] {
 .trend .tick { fill: var(--ink-3); font-size: var(--text-xs); }
 .trend figcaption { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); margin-top: 6px; }
 .trend figcaption span { display: inline-flex; align-items: center; gap: 6px; }
+.trend-controls { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
+.trend-dialog { width: min(1100px, calc(100vw - 28px)); max-width: none; max-height: min(90vh, 900px); padding: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.trend-dialog::backdrop { background: var(--backdrop); }
+.trend-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.trend-dialog-head h2 { font-size: var(--text-lg); font-weight: 600; }
+.trend-dialog-body { overflow: auto; padding: var(--space-4); }
+.trend-dialog-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3); }
+.trend-dialog .trend svg { min-height: 240px; }
+@media (max-width: 560px) {
+  .trend-dialog { width: calc(100vw - 16px); max-height: 94vh; }
+  .trend-dialog-body { padding: var(--space-2); }
+  .trend-dialog .trend svg { min-height: 190px; }
+}
 
 .prose p, .prose li { max-width: 72ch; }
 .bullets { list-style: disc; padding-left: 1.2em; display: grid; gap: 6px; margin-top: var(--space-3); }
@@ -364,3 +378,4 @@ select, input[type='search'], .search-trigger { border-color: var(--line-input);
 .swatch-runoff { background: repeating-linear-gradient(45deg, var(--ink-3) 0 2px, transparent 2px 5px); border: 1px solid var(--line-strong); }
 /* Elected candidate: badge in the party colour, with the palette's ink for that colour. */
 .badge.is-party-elected { font-weight: 600; }
+
