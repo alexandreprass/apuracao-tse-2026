@@ -41,6 +41,11 @@ function officeLabel(office, uf) {
   return OFFICES[office].label;
 }
 
+function electedFirst(result) {
+  return { ...result, candidates: [...(result.candidates || [])].sort((a, b) =>
+    Number(b.kind === 'eleito') - Number(a.kind === 'eleito') || b.votes - a.votes) };
+}
+
 /** Brazil overview: party seats on the left, elected candidates on the right. */
 function Overview({ route, geo, theme, index, office }) {
   const [expandedUf, setExpandedUf] = useState(null);
@@ -116,10 +121,11 @@ function StateRace({ route, geo, theme, office, uf, ibge, feed }) {
     .map(([party, count]) => ({ party, count, color: partyColor(party) }));
   const cityName = ibge ? geo.byId.get(ibge)?.name : null;
   const cityResult = municipality.data?.result;
+  const orderedCityResult = cityResult && electedFirst(cityResult);
   const mapMunicipal = (() => {
     if (!ibge) return null;
     const rows = new Map((geo.states[uf]?.municipalities || []).map(m => [m.id, { ...states[uf], name: m.name, inherited: true }]));
-    if (cityResult) rows.set(ibge, mapRow(cityResult, cityName || cityResult.name));
+    if (orderedCityResult) rows.set(ibge, mapRow(orderedCityResult, cityName || orderedCityResult.name));
     return rows;
   })();
   const shownResult = ibge ? cityResult : result;
@@ -128,16 +134,16 @@ function StateRace({ route, geo, theme, office, uf, ibge, feed }) {
     onState=${code => route.go({ uf: code, ibge: null })} onMunicipality=${id => route.go({ uf, ibge: id })}
     title=${ibge ? `${cityName || 'Município'} · ${stateName(uf)}` : `${label} · ${stateName(uf)}`}/>`;
   const scoreboard = ibge
-    ? html`<${MunicipalityOfficeLinks} route=${route}/>${cityResult ? html`<div class="score-card proportional-candidates">
+    ? html`<${MunicipalityOfficeLinks} route=${route}/>${orderedCityResult ? html`<div class="score-card proportional-candidates">
         <div class="score-head"><span class="eyebrow">${cityName || 'MUNICÍPIO'} · ${uf} · 1º TURNO</span></div>
-        <${Scoreboard} result=${cityResult} round=${1} office=${office} uf=${uf} show=${10} focus=${route.focus}/>
+        <${Scoreboard} result=${orderedCityResult} round=${1} office=${office} uf=${uf} show=${10} focus=${route.focus}/>
       </div>`
       : municipality.data?.status ? html`<${Notice} tone="warning" title="Resultado municipal indisponível">${municipality.data.message || 'O TSE ainda não publicou os votos deste município.'}</${Notice}>`
       : html`<${Loading} text=${`Carregando votos de ${cityName || 'município'}…`}/>`}`
     : html`<div class="score-card proportional-candidates">
     <div class="score-head"><span class="eyebrow">${stateName(uf).toUpperCase()} · 1º TURNO · ${result.finished ? 'FINALIZADA' : 'EM APURAÇÃO'}</span></div>
     <p class="muted small">${int(elected.length)} eleitos de ${int(result.seats)} vagas${result.quotient ? ` · quociente eleitoral ${int(result.quotient)}` : ''}</p>
-    <${Scoreboard} result=${result} round=${1} office=${office} uf=${uf} show=${Math.max(elected.length, 4)} focus=${route.focus}/>
+    <${Scoreboard} result=${electedFirst(result)} round=${1} office=${office} uf=${uf} show=${Math.max(elected.length, 4)} focus=${route.focus}/>
   </div>`;
   const info = html`<div class="score-card">
     <div class="score-head"><span class="eyebrow">Cadeiras por partido · ${stateName(uf)}</span></div>

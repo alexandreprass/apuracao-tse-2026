@@ -6,7 +6,7 @@ import { partyColor } from '../lib/color.js';
 import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, regionTotals, runoffCandidates, runoffStates, stateRows, statesWon, unpackMunicipalities } from '../data/analysis.js';
 import { stateName, UFS } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
-import { readTrend, recordTrend } from '../data/trend.js';
+import { recordPresidentialTrend } from '../data/trend.js';
 import { noBoletimNotice } from '../data/status.js';
 import { useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useData.js';
 import { Icon } from '../components/Icon.js';
@@ -115,11 +115,10 @@ export function RunoffWaiting({ office, uf, first, data, geo, theme, route, crum
  * Shares over time while a count runs, kept in this browser (localStorage) so the chart does not
  * start empty when the reader comes back. Only official TSE numbers are recorded.
  */
-function useStoredTrend(key, result, running) {
+function useStoredTrend(key, result, enabled) {
   return useMemo(() => {
-    if (!result) return [];
-    return running ? recordTrend(key, result) : readTrend(key);
-  }, [key, result, running]);
+    return enabled && result ? recordPresidentialTrend(key, result) : [];
+  }, [key, result, enabled]);
 }
 
 /** "Dá pra virar?": the gap now and an ESTIMATE of the votes still to count. Never a result. */
@@ -264,7 +263,8 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
 
   const result = ibge ? (liveResult || packRow) : uf === 'ZZ' ? data?.zz : uf ? data?.uf?.[uf] : national;
   const election = data?.br?.election || data?.uf?.[uf]?.election || round;
-  const trend = useStoredTrend(`${election}|${round}|${office}|${uf || 'BR'}|${ibge || ''}`, result, !!result && !result.finished && !!data && !data.status);
+  const showPresidentialTimeline = office === 'presidente' && !uf && !ibge;
+  const trend = useStoredTrend(`${election}|${round}|presidente|BR`, result, showPresidentialTimeline);
   const packTime = packState.value?.fetchedAt ? brasiliaStamp(new Date(packState.value.fetchedAt)) : '';
   const scopeCode = ibge ? null : uf || 'BR';
   const scopeStale = !ibge && !!data && !data.status && (data.liveError || data.staleUfs?.includes(scopeCode));
@@ -328,12 +328,12 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
     </div>`}
     <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState}/></div>
     ${exterior}`;
-  const trendTab = trend.length > 1
-    ? html`<p class="muted small">Boletins do TSE vistos neste navegador desde ${trend[0].time ? trend[0].time.slice(0, 5) + ' ' + trend[0].time.slice(11, 16) : 'a primeira visita'} (guardados só aqui).</p><${TrendChart} points=${trend}/>`
-    : html`<p class="muted small">A evolução da apuração aparece aqui conforme o TSE publica novos boletins com esta página aberta (guardada só neste navegador).</p>`;
+  const trendTab = trend.length
+    ? html`<p class="muted small">Até um ponto por minuto, conforme o TSE publica boletins novos enquanto esta página está aberta. Histórico guardado somente neste navegador.</p><${TrendChart} points=${trend}/>`
+    : html`<p class="muted small">A linha começa a ser registrada quando o TSE publicar resultados para presidente. Os boletins são acompanhados enquanto esta página estiver aberta e o histórico fica neste navegador.</p>`;
   const tabs = [
     { id: 'estados', label: 'Estados', content: statesTab },
-    { id: 'evolucao', label: 'Evolução', content: trendTab },
+    ...(showPresidentialTimeline ? [{ id: 'evolucao', label: 'Evolução', content: trendTab }] : []),
     { id: 'municipio', label: 'Meu município', content: html`<${MyMunicipality} geo=${geo} onChoose=${onChooseMunicipality}/>` },
   ];
   const drawers = {
