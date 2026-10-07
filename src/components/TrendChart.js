@@ -21,24 +21,42 @@ function TrendPlot({ points, large = false }) {
   const y = v => H - P - ((H - 2 * P) * (v - lo)) / Math.max(1, hi - lo);
   const timeLabel = value => {
     const date = new Date(value);
-    return lastTime - firstTime >= 86_400_000
-      ? `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-      : `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return `${String(date.getHours()).padStart(2, '0')}h`;
   };
-  const xTicks = firstTime === lastTime ? [firstTime] : [firstTime, firstTime + (lastTime - firstTime) / 2, lastTime];
+  const firstHour = new Date(firstTime);
+  firstHour.setMinutes(0, 0, 0);
+  if (firstHour.getTime() <= firstTime) firstHour.setHours(firstHour.getHours() + 1);
+  const xTicks = [];
+  for (let tick = firstHour.getTime(); tick < lastTime; tick += 3_600_000) xTicks.push(tick);
+  if (new Date(lastTime).getMinutes() === 0) xTicks.push(lastTime);
+  if (xTicks.length < 3) xTicks.splice(0, xTicks.length, ...[firstTime, firstTime + (lastTime - firstTime) / 2, lastTime]);
+  const hourlyPoints = points.filter(point => point.time?.slice(14, 16) === '00');
+  const yTicks = [...new Set([lo, ...[40, 50, 60].filter(value => value > lo && value < hi), hi])].sort((a, b) => a - b);
   return html`<figure class="trend">
     <svg viewBox=${`0 0 ${W} ${H}`} role="img" aria-label="Evolução dos votos para presidente ao longo do tempo">
       <line x1=${P} x2=${W - P} y1=${H - P} y2=${H - P} class="axis"/>
-      ${lo < 50 && hi > 50 && html`<line x1=${P} x2=${W - P} y1=${y(50)} y2=${y(50)} class="trend-majority"/><text x=${W - P} y=${y(50) - 4} class="tick" text-anchor="end">50%</text>`}
-      ${xTicks.map((tick, i) => html`<text key=${i} x=${xTime(tick)} y=${H - 8} class="tick" text-anchor=${i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>${timeLabel(tick)}</text>`)}
-      <text x=${4} y=${y(hi) + 4} class="tick">${pct(hi, 0)}</text><text x=${4} y=${y(lo)} class="tick">${pct(lo, 0)}</text>
-      ${[...series.values()].map(s => html`<g key=${s.n}>
-        <polyline fill="none" stroke=${partyColor(s.party)} stroke-width=${large ? 4 : 2.5} pathLength="1" class="trend-line"
+      ${yTicks.map(tick => html`<g key=${tick}>
+        <line x1=${P} x2=${W - P} y1=${y(tick)} y2=${y(tick)} class=${tick === 50 ? 'trend-majority' : 'trend-grid'}/>
+        <text x=${P - 8} y=${y(tick) + 4} class="tick" text-anchor="end">${pct(tick, 0)}</text>
+      </g>`)}
+      ${xTicks.map((tick, i) => html`<text key=${i} x=${xTime(tick)} y=${H - 8} class="tick" text-anchor=${i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}>${timeLabel(tick)}</text>`)}
+      ${[...series.values()].map((s, seriesIndex) => html`<g key=${s.n}>
+        <polyline fill="none" stroke=${partyColor(s.party)} stroke-width=${large ? 4 : 2.5} stroke-linecap="round" stroke-linejoin="round" class="trend-line"
           points=${points.flatMap(point => {
             const value = point.shares.find(item => item.n === s.n);
             const time = parseTseDate(point.time)?.getTime();
             return value && Number.isFinite(time) ? [`${xTime(time)},${y(value.pct)}`] : [];
           }).join(' ')}/>
+        ${large && hourlyPoints.map(point => {
+          const value = point.shares.find(item => item.n === s.n);
+          const time = parseTseDate(point.time)?.getTime();
+          if (!value || !Number.isFinite(time)) return null;
+          const labelY = Math.max(P + 12, Math.min(H - P - 6, y(value.pct) + (seriesIndex === 0 ? -10 : 16)));
+          return html`<g key=${`${s.n}-${time}`}>
+            <circle cx=${xTime(time)} cy=${y(value.pct)} r="4" fill=${partyColor(s.party)} stroke="var(--surface)" stroke-width="2"/>
+            <text x=${xTime(time)} y=${labelY} class="hour-value" text-anchor="middle" style=${{ fill: partyColor(s.party) }}>${pct(value.pct, 1)}</text>
+          </g>`;
+        })}
         ${s.values.length === 1 && html`<circle cx=${xTime(firstTime)} cy=${y(s.values[0][1])} r=${large ? 6 : 3} fill=${partyColor(s.party)}/>`}
       </g>`)}
     </svg>
@@ -49,22 +67,36 @@ function TrendPlot({ points, large = false }) {
 /** Official vote evolution with an expanded view and a 20-second replay. */
 export function TrendChart({ points }) {
   const dialog = useRef(null);
+  const animationFrame = useRef(null);
   const open = () => dialog.current?.showModal();
   const play = () => {
-    const lines = dialog.current?.querySelectorAll('.trend-line') || [];
-    for (const line of lines) {
-      line.classList.remove('is-playing');
-      line.style.animation = 'none';
-      line.getBoundingClientRect();
-      line.style.animation = '';
-      line.classList.add('is-playing');
-    }
+    if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
+    const lines = [...(dialog.current?.querySelectorAll('.trend-line') || [])].map(line => {
+      const length = line.getTotalLength();
+      line.style.strokeDasharray = `${length}px`;
+      line.style.strokeDashoffset = `${length}px`;
+      return { line, length };
+    });
+    const duration = 20_000;
+    let started = null;
+    const draw = now => {
+      started ??= now;
+      const progress = Math.min(1, (now - started) / duration);
+      for (const { line, length } of lines) line.style.strokeDashoffset = `${length * (1 - progress)}px`;
+      if (progress < 1) animationFrame.current = requestAnimationFrame(draw);
+      else animationFrame.current = null;
+    };
+    animationFrame.current = requestAnimationFrame(draw);
+  };
+  const stop = () => {
+    if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
+    animationFrame.current = null;
   };
   if (!points.length) return null;
   return html`<div class="trend-experience">
     <div class="trend-controls"><button class="button is-small" onClick=${open}>EXPANDIR</button></div>
     <${TrendPlot} points=${points}/>
-    <dialog class="trend-dialog" ref=${dialog} aria-label="Evolução dos votos presidenciais"
+    <dialog class="trend-dialog" ref=${dialog} aria-label="Evolução dos votos presidenciais" onClose=${stop}
       onClick=${event => { if (event.target === dialog.current) dialog.current.close(); }}>
       <div class="trend-dialog-head">
         <div><h2>Evolução dos votos</h2><p class="muted small">Totalização oficial do TSE · 1º turno</p></div>
