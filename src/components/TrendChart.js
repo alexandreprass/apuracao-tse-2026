@@ -6,7 +6,7 @@ import { parseTseDate } from '../data/normalize.js';
 
 /** Share of each leading candidate (y) against the share of sections counted (x). */
 function TrendPlot({ points, large = false }) {
-  const W = large ? 1100 : 600, H = large ? 420 : 180, P = large ? 54 : 28;
+  const W = large ? 1200 : 600, H = large ? 520 : 200, P = large ? 58 : 32;
   const series = new Map();
   for (const point of points) for (const s of point.shares) {
     if (!series.has(s.n)) series.set(s.n, { ...s, values: [] });
@@ -41,7 +41,7 @@ function TrendPlot({ points, large = false }) {
       </g>`)}
       ${xTicks.map((tick, i) => html`<text key=${i} x=${xTime(tick)} y=${H - 8} class="tick" text-anchor=${i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}>${timeLabel(tick)}</text>`)}
       ${[...series.values()].map((s, seriesIndex) => html`<g key=${s.n}>
-        <polyline fill="none" stroke=${partyColor(s.party)} stroke-width=${large ? 4 : 2.5} stroke-linecap="round" stroke-linejoin="round" class="trend-line"
+        <polyline fill="none" stroke=${partyColor(s.party)} stroke-width=${large ? 1.2 : 0.75} stroke-linecap="round" stroke-linejoin="round" class="trend-line"
           points=${points.flatMap(point => {
             const value = point.shares.find(item => item.n === s.n);
             const time = parseTseDate(point.time)?.getTime();
@@ -53,7 +53,7 @@ function TrendPlot({ points, large = false }) {
           if (!value || !Number.isFinite(time)) return null;
           const labelY = Math.max(P + 12, Math.min(H - P - 6, y(value.pct) + (seriesIndex === 0 ? -10 : 16)));
           return html`<g key=${`${s.n}-${time}`}>
-            <circle cx=${xTime(time)} cy=${y(value.pct)} r="4" fill=${partyColor(s.party)} stroke="var(--surface)" stroke-width="2"/>
+            <circle cx=${xTime(time)} cy=${y(value.pct)} r="3" fill=${partyColor(s.party)} stroke="var(--surface)" stroke-width="1.5"/>
             <text x=${xTime(time)} y=${labelY} class="hour-value" text-anchor="middle" style=${{ fill: partyColor(s.party) }}>${pct(value.pct, 1)}</text>
           </g>`;
         })}
@@ -68,6 +68,11 @@ function TrendPlot({ points, large = false }) {
 export function TrendChart({ points }) {
   const dialog = useRef(null);
   const animationFrame = useRef(null);
+  const cutoff = parseTseDate('04/10/2026 23:00:00');
+  const chartPoints = points.filter(point => {
+    const time = parseTseDate(point.time);
+    return time && time <= cutoff;
+  });
   const open = () => dialog.current?.showModal();
   const play = () => {
     if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
@@ -92,10 +97,10 @@ export function TrendChart({ points }) {
     if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
     animationFrame.current = null;
   };
-  if (!points.length) return null;
+  if (!chartPoints.length) return null;
   return html`<div class="trend-experience">
     <div class="trend-controls"><button class="button is-small" onClick=${open}>EXPANDIR</button></div>
-    <${TrendPlot} points=${points}/>
+    <${TrendPlot} points=${chartPoints}/>
     <dialog class="trend-dialog" ref=${dialog} aria-label="Evolução dos votos presidenciais" onClose=${stop}
       onClick=${event => { if (event.target === dialog.current) dialog.current.close(); }}>
       <div class="trend-dialog-head">
@@ -107,7 +112,7 @@ export function TrendChart({ points }) {
           <button class="button" onClick=${play} aria-label="Reproduzir evolução desde o início">▶ Reproduzir</button>
           <span class="muted small">A linha percorre o histórico em cerca de 20 segundos.</span>
         </div>
-        <${TrendPlot} points=${points} large=${true}/>
+        <${TrendPlot} points=${chartPoints} large=${true}/>
       </div>
     </dialog>
   </div>`;
