@@ -7,6 +7,7 @@ import { electedCandidates, hasRunoff, mapRow, partyTally, raceStatus, regionTot
 import { stateName, UFS } from '../data/states.js';
 import { comebackEstimate } from '../data/estimate.js';
 import { recordPresidentialTrend } from '../data/trend.js';
+import { presidentialHistory2026 } from '../data/presidential-history.js';
 import { noBoletimNotice } from '../data/status.js';
 import { useLiveMunicipality, useMunicipalPack, useOffice } from '../hooks/useData.js';
 import { Icon } from '../components/Icon.js';
@@ -264,7 +265,10 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
   const result = ibge ? (liveResult || packRow) : uf === 'ZZ' ? data?.zz : uf ? data?.uf?.[uf] : national;
   const election = data?.br?.election || data?.uf?.[uf]?.election || round;
   const showPresidentialTimeline = office === 'presidente' && !uf && !ibge;
-  const trend = useStoredTrend(`${election}|${round}|presidente|BR`, result, showPresidentialTimeline);
+  const capturedTrend = useStoredTrend(`${election}|${round}|presidente|BR`, result, showPresidentialTimeline);
+  const hasOfficialHistory = showPresidentialTimeline && round === 1 && Number(election) === ROUNDS[1].federal;
+  const useOfficialHistory = hasOfficialHistory && (result?.finished || capturedTrend.length < 2);
+  const trend = useOfficialHistory ? presidentialHistory2026 : capturedTrend;
   const packTime = packState.value?.fetchedAt ? brasiliaStamp(new Date(packState.value.fetchedAt)) : '';
   const scopeCode = ibge ? null : uf || 'BR';
   const scopeStale = !ibge && !!data && !data.status && (data.liveError || data.staleUfs?.includes(scopeCode));
@@ -329,7 +333,9 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
     <div id="tabela-estados"><${StatesTable} data=${data} onState=${onState}/></div>
     ${exterior}`;
   const trendTab = trend.length
-    ? html`<p class="muted small">Até um ponto por minuto, conforme o TSE publica boletins novos enquanto esta página está aberta. Histórico guardado somente neste navegador.</p><${TrendChart} points=${trend}/>`
+    ? html`<p class="muted small">${useOfficialHistory
+      ? html`Histórico oficial da totalização do TSE no 1º turno, com pontos a cada cinco minutos. <a href="https://evolucao-totalizacao.tse.jus.br/painel/index.html#ano=2026&pleito=3220&uf=BR&grao=uf&cargo=1" target="_blank" rel="noopener noreferrer">Ver painel do TSE</a>.`
+      : 'Até um ponto por minuto, conforme o TSE publica boletins novos enquanto esta página está aberta. Histórico guardado somente neste navegador.'}</p><${TrendChart} points=${trend}/>`
     : html`<p class="muted small">A linha começa a ser registrada quando o TSE publicar resultados para presidente. Os boletins são acompanhados enquanto esta página estiver aberta e o histórico fica neste navegador.</p>`;
   const tabs = [
     { id: 'estados', label: 'Estados', content: statesTab },
@@ -351,4 +357,5 @@ export function MajoritarianView({ route, geo, theme, office: officeState, onCho
     leaders=${result?.candidates} tabs=${tabs} drawer=${drawer && drawers[drawer]} onCloseDrawer=${() => setDrawer(null)}
     footer=${html`<${SiteFooter} feed=${officeState.feed} round=${round}/>`}/>`;
 }
+
 
